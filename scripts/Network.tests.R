@@ -14,7 +14,7 @@ library(plyr)
  #### Load the data ####
 
 
-Rel.Start <- read.csv("RelationshipStart.csv", header=T, as.is=T) 
+Rel.Start <- read.csv('./input.files/RelationshipStart.csv', header=T, as.is=T) 
 #Rel.End <- read.csv("RelationshipEnd.csv", header=T, as.is=T) 
 
 # Rel.Start$Rel_type..0...TRANSITORY..1...INFORMAL..2...MARITAL..3...COMMERCIAL
@@ -360,15 +360,39 @@ mtext("Partners per year by individual risk", outer = TRUE, cex = 1.5)
 
 #### Contact tracing ####
 
+Rel.Start$Rel_type <- Rel.Start$Rel_type..0...TRANSITORY..1...INFORMAL..2...MARITAL..3...COMMERCIAL.
+Rel.Start$Rel_start_time_YEARS <- Rel.Start$Rel_start_time/365
+
+# Some possible behavioral, clinical, and demographic risk attributes for each indivdual
+#Rel.Start.list <- subset(Rel.Start, select = c("A_ID", "B_ID", "Rel_type", "Rel_start_time_YEARS"))
+  # "A/B_risk"
+  # "A/B_HIV_disease_stage"
+  # "A/B_is_infected"
+  # "A/B_is_superspreader"
+  # "A/B_HIV_Tested_Positive"
+
+#Rel.Start.list.1year <- Rel.Start.list[Rel.Start.list$Rel_start_time_YEARS > 34.0 & 
+#                                         Rel.Start.list$Rel_start_time_YEARS < 35.0, ]
+
+summary(Rel.Start$Rel_start_time_YEARS)
+#Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
+#0.00   42.67   66.25   61.36   82.50   96.58 
+
 # list contacts for one individual
 
 #Rel.Start.list <- Rel.Start.list[order(Rel.Start.list$A_ID),]
-contacts.ID.2 <- Rel.Start.list$B_ID[Rel.Start.list$A_ID == 2]
+contacts.ID.2 <- Rel.Start$B_ID[Rel.Start$A_ID == 2]
 
 # Need to:
 
 # Pick a timespan of the simulated epidemic (3 years?)
-# this N-year timespan should be the "name your partners in the last N years"
-# Randomly select a set of index individuals
+# (this N-year timespan as proxy for "name your partners in the last N years")
+
+Rel.Start.3years <- Rel.Start[Rel.Start$Rel_start_time_YEARS > 50.0 & 
+                                Rel.Start$Rel_start_time_YEARS < 53.0, ]
+
+# Randomly select a set of index HIV-infected and diagnosed individuals
+index.HIVinfected <- Rel.Start$A_ID[Rel.Start$A_HIV_Tested_Positive == 1]
+
 # For each index, identify all contacts prior to a certain date (within the timespan)
 
