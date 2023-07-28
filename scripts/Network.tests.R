@@ -388,11 +388,18 @@ contacts.ID.2 <- Rel.Start$B_ID[Rel.Start$A_ID == 2]
 # Pick a timespan of the simulated epidemic (3 years?)
 # (this N-year timespan as proxy for "name your partners in the last N years")
 
-Rel.Start.3years <- Rel.Start[Rel.Start$Rel_start_time_YEARS > 50.0 & 
-                                Rel.Start$Rel_start_time_YEARS < 53.0, ]
+Rel.Start.3years <- Rel.Start[Rel.Start$Rel_start_time_YEARS > 80.0 & 
+                                Rel.Start$Rel_start_time_YEARS < 85.0, ]
 
-# Randomly select a set of index HIV-infected and diagnosed individuals
-index.HIVinfected <- Rel.Start$A_ID[Rel.Start$A_HIV_Tested_Positive == 1]
+length(unique(Rel.Start.3years$A_ID))
+
+# Select a set of index HIV-infected and diagnosed individuals
+index.HIVinfected <- Rel.Start.3years[Rel.Start.3years$A_HIV_Tested_Positive == 1,]
+
+# Select a set of index non-HIV-infected and diagnosed individuals
+index.HIVnotinfected <- Rel.Start.3years[Rel.Start.3years$A_HIV_Tested_Positive == 0,]
+
+
 
 # For each index, identify all contacts prior to a certain date (within the timespan)
 
