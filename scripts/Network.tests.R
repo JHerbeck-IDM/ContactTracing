@@ -394,10 +394,10 @@ Rel.Start.3years <- Rel.Start[Rel.Start$Rel_start_time_YEARS > 80.0 &
 length(unique(Rel.Start.3years$A_ID))
 
 # Select a set of index HIV-infected and diagnosed individuals
-index.HIVinfected <- Rel.Start.3years[Rel.Start.3years$A_HIV_Tested_Positive == 1,]
+index.HIVinfected <- Rel.Start.3years[Rel.Start.3years$A_HIV_Tested_Positive == 1, ]
 
 # Select a set of index non-HIV-infected and diagnosed individuals
-index.HIVnotinfected <- Rel.Start.3years[Rel.Start.3years$A_HIV_Tested_Positive == 0,]
+index.HIVnotinfected <- Rel.Start.3years[Rel.Start.3years$A_HIV_Tested_Positive == 0, ]
 
 
 
