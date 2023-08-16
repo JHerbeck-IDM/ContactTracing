@@ -360,6 +360,8 @@ mtext("Partners per year by individual risk", outer = TRUE, cex = 1.5)
 
 #### Contact tracing ####
 
+# Data manipulation to start
+
 Rel.Start$Rel_type <- Rel.Start$Rel_type..0...TRANSITORY..1...INFORMAL..2...MARITAL..3...COMMERCIAL.
 Rel.Start$Rel_start_time_YEARS <- Rel.Start$Rel_start_time/365
 
@@ -371,36 +373,42 @@ Rel.Start$Rel_start_time_YEARS <- Rel.Start$Rel_start_time/365
   # "A/B_is_superspreader"
   # "A/B_HIV_Tested_Positive"
 
-#Rel.Start.list.1year <- Rel.Start.list[Rel.Start.list$Rel_start_time_YEARS > 34.0 & 
-#                                         Rel.Start.list$Rel_start_time_YEARS < 35.0, ]
-
-summary(Rel.Start$Rel_start_time_YEARS)
-#Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
-#0.00   42.67   66.25   61.36   82.50   96.58 
-
-# list contacts for one individual
+# test:  list all contacts for one individual (this is for the entire modeled lifespan)
 
 #Rel.Start.list <- Rel.Start.list[order(Rel.Start.list$A_ID),]
 contacts.ID.2 <- Rel.Start$B_ID[Rel.Start$A_ID == 2]
 
-# Need to:
+#> contacts.ID.2
+#[1] 2980 3388 3181 4375 1485 3472 5819 3393 4249 3537
+
+
+
+# Now:
 
 # Pick a timespan of the simulated epidemic (3 years?)
 # (this N-year timespan as proxy for "name your partners in the last N years")
 
-Rel.Start.5years <- Rel.Start[Rel.Start$Rel_start_time_YEARS > 50.0 & 
-                                Rel.Start$Rel_start_time_YEARS < 55.0, ]
+Rel.Start.3years <- Rel.Start[Rel.Start$Rel_start_time_YEARS > 50.0 & 
+                                Rel.Start$Rel_start_time_YEARS < 53.0, ]
 
-length(unique(Rel.Start.5years$A_ID))
+length(unique(Rel.Start.3years$A_ID))
 
 # Select a set of index HIV-infected and diagnosed individuals
-index.HIVinfected <- Rel.Start.5years[Rel.Start.5years$A_HIV_Tested_Positive == 1, ]
-#'data.frame':	2008 obs. of  53 variables:
+index.HIVinfected <- Rel.Start.3years[Rel.Start.3years$A_HIV_Tested_Positive == 1, ]
+length(unique(index.HIVinfected$A_ID))
+#'data.frame':	1143 obs. of  54 variables:
 
 # Select a set of index non-HIV-infected and diagnosed individuals
-index.HIVnotinfected <- Rel.Start.5years[Rel.Start.5years$A_HIV_Tested_Positive == 0, ]
-#'data.frame':	19142 obs. of  53 variables:
+index.HIVnotinfected <- Rel.Start.3years[Rel.Start.3years$A_HIV_Tested_Positive == 0, ]
+#'data.frame':	11190 obs. of  54 variables:
 
 
-# For each index, identify all contacts prior to a certain date (within the timespan)
+
+
+# For each index in both groups, identify all contacts prior to a certain date (within the timespan)
+
+# for all rows in which A_is_infected == 1, identify all B_IDs
+# 
+
+Rel.Start$B_ID[Rel.Start$A_ID == 2]
 
