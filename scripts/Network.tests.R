@@ -385,27 +385,31 @@ contacts.ID.2 <- Rel.Start$B_ID[Rel.Start$A_ID == 2]
 
 # Now:
 
-# Pick a timespan of the simulated epidemic (3 years?)
-# (this N-year timespan as proxy for "name your partners in the last N years")
+# Pick a timespan of the simulated epidemic (2 years?)
+# (this N-year timespan is a proxy for a contact tracing sampling campaign)
 
-Rel.Start.3years <- Rel.Start[Rel.Start$Rel_start_time_YEARS > 50.0 & 
-                                Rel.Start$Rel_start_time_YEARS < 53.0, ]
+Rel.Start.1years <- Rel.Start[Rel.Start$Rel_start_time_YEARS > 50.0 & 
+                                Rel.Start$Rel_start_time_YEARS < 51.0, ]
 
-length(unique(Rel.Start.3years$A_ID))
+length(unique(Rel.Start.1years$A_ID))
 
 # Select a set of index HIV-infected and diagnosed individuals
-index.HIVinfected <- Rel.Start.3years[Rel.Start.3years$A_HIV_Tested_Positive == 1, ]
+index.HIVinfected <- Rel.Start.1years[Rel.Start.1years$A_HIV_Tested_Positive == 1, ]
 length(unique(index.HIVinfected$A_ID))
-#'data.frame':	1143 obs. of  54 variables:
+# 62 unique A_ID individuals
 
-# Select a set of index non-HIV-infected and diagnosed individuals
-index.HIVnotinfected <- Rel.Start.3years[Rel.Start.3years$A_HIV_Tested_Positive == 0, ]
-#'data.frame':	11190 obs. of  54 variables:
+# Select a set of index non-HIV-infected individuals
+index.HIVuninfected <- Rel.Start.1years[Rel.Start.1years$A_HIV_Tested_Positive == 0, ]
+length(unique(index.HIVuninfected$A_ID))
+# 804 unique A_ID individuals
 
 
 
+# For each index in "index.HIVinfected", identify all contacts (all B_IDs)
+# that are prior to a certain date (within the timespan)
 
-# For each index in both groups, identify all contacts prior to a certain date (within the timespan)
+partner.HIVinfected <- index.HIVinfected$B_ID
+length(partner.HIVinfected)
 
 # for all rows in which A_is_infected == 1, identify all B_IDs
 # 
