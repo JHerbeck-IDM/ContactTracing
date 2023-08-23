@@ -397,12 +397,15 @@ length(unique(Rel.Start.1years$A_ID))
 index.HIVinfected <- Rel.Start.1years[Rel.Start.1years$A_HIV_Tested_Positive == 1, ]
 length(unique(index.HIVinfected$A_ID))
 # 62 unique A_ID individuals
+length(unique(index.HIVinfected$B_ID))
+# 119 unique B_ID
 
 # Select a set of index non-HIV-infected individuals
 index.HIVuninfected <- Rel.Start.1years[Rel.Start.1years$A_HIV_Tested_Positive == 0, ]
 length(unique(index.HIVuninfected$A_ID))
 # 804 unique A_ID individuals
-
+length(unique(index.HIVuninfected$B_ID))
+# 798 unique B_ID 
 
 
 # For each index in "index.HIVinfected", identify all contacts (all B_IDs)
