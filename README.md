@@ -26,3 +26,5 @@ If someone is a contact of multiple incident HIV cases what should we do?
 If we are tracing from every incident person we should just consider them the contact of the earliest diagnosed incident person (that is the first time they will show up).
 
 If we are interested in not tracing contacts of every incident case or not all contacts get traced we need to keep them as a contact until they are traced. This requires me resolving the many to many mapping problem when trying to get the number of times a contact transmits before and/or after the tracing.
+
+Important point about sampling... i.e. we need to subsample either the indexes or the partners, because in a real campaign not all HIV+ individuals are enrolled (or choose to name partners), or there may not be enough $ to enroll every index. AND, lots of partners will not be findable. Maybe add to the pipeline the ability to subsample the eligible indexes and also the partners.
