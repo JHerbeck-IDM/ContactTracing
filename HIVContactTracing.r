@@ -23,6 +23,7 @@ getGroups <- function(trace_start_time, trace_end_time, acute_to_trace=FALSE){
   
   # Read in file
   eventReport <- read_csv('ReportEventRecorder.csv')
+  sim_start_year = min(eventReport['Year'])
   
   # Set a data frame with a row per individual
   individuals <- eventReport %>% select(Individual_ID, Gender) %>%
@@ -111,10 +112,10 @@ getGroups <- function(trace_start_time, trace_end_time, acute_to_trace=FALSE){
                                                             'Undiagnosed_HIV',
                                                             'HIV-'))
   
-  return(individuals)
+  return(list('df'=individuals, 'start_year'=sim_start_year))
 }
 
-getPartners <- function(index_individuals, look_back_duration){
+getPartners <- function(index_individuals, look_back_duration, sim_start_year=1960.5){
   
   # Read in relationship start file and reduce the amount of data
   relationshipData <- read_csv('RelationshipStart.csv')
@@ -168,7 +169,7 @@ getPartners <- function(index_individuals, look_back_duration){
                         contact_Risk=A_Risk,
                         contact_HIV_stage=A_HIV_disease_stage)
   femaleIndex <- left_join(femaleIndex,
-                           individuals[c('Individual_ID', 'Diagnosis')],
+                           individuals[c('Individual_ID', 'Diagnosis', 'subset')],
                            by='Individual_ID')
   rm(relationshipData)
   
@@ -178,11 +179,40 @@ getPartners <- function(index_individuals, look_back_duration){
   rm(femaleIndex)
   
   # Reduce to relationships that were active in the look back period
-  contactData$Rel_start_time <- contactData$Rel_start_time / 365.24 +1960.5
-  contactData$Rel_actual_end_time <- contactData$Rel_actual_end_time / 365.24 + 1960.5
+  contactData$Rel_start_time <- contactData$Rel_start_time / 365 + sim_start_year
+  contactData$Rel_actual_end_time <- contactData$Rel_actual_end_time / 365 + sim_start_year
   contactData <- contactData %>% filter(Rel_start_time <= Diagnosis &
                                         Rel_actual_end_time >= (Diagnosis - look_back_duration))
   
   return(contactData)
 }
 
+getTransData <- function(contactData){
+  
+  # Read in transmission file and reduce the amount of data
+  transData <- read_csv('TransmissionReport.csv')
+  transData <- transData %>% select(YEAR,
+                                    REL_ID,
+                                    SRC_ID,
+                                    DEST_ID)
+  
+  # Get number of transmissions of contacts before and after tracing start
+  transData <- left_join(transData, contactData[c('contact_ID',
+                                                  'Individual_ID',
+                                                  'Diagnosis',
+                                                  'contact_Risk',
+                                                  'contact_HIV_stage',
+                                                  'subset')],
+                         by=c('SRC_ID'='contact_ID'), relationship="many-to-many")
+  
+  transData <- transData %>% group_by(SRC_ID, Individual_ID) %>% 
+    summarise(num_trans_before=sum(YEAR<=Diagnosis),
+              num_trans_after=sum(YEAR>Diagnosis),
+              contact_Risk=contact_Risk[1],
+              contact_HIV_stage=contact_HIV_stage[1],
+              subset=subset[1]) %>% 
+    mutate(num_trans_before = ifelse(is.na(num_trans_before), 0, num_trans_before),
+           num_trans_after = ifelse(is.na(num_trans_after), 0, num_trans_after)) %>% 
+  
+  return(transData)
+}
