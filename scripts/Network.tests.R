@@ -365,13 +365,15 @@ mtext("Partners per year by individual risk", outer = TRUE, cex = 1.5)
 Rel.Start$Rel_type <- Rel.Start$Rel_type..0...TRANSITORY..1...INFORMAL..2...MARITAL..3...COMMERCIAL.
 Rel.Start$Rel_start_time_YEARS <- Rel.Start$Rel_start_time/365
 
-# Some possible behavioral, clinical, and demographic risk attributes for each indivdual
-#Rel.Start.list <- subset(Rel.Start, select = c("A_ID", "B_ID", "Rel_type", "Rel_start_time_YEARS"))
-  # "A/B_risk"
-  # "A/B_HIV_disease_stage"
-  # "A/B_is_infected"
-  # "A/B_is_superspreader"
-  # "A/B_HIV_Tested_Positive"
+# A_IDs are males
+# B_IDs are females
+
+# Some possible behavioral, clinical, and demographic risk attributes of interest each indivdual
+# "A_ or B_risk"
+# "A_ or B_HIV_disease_stage"
+# "A_ or B_is_infected"
+# "A_ or B_is_superspreader"
+# "A_ or B_HIV_Tested_Positive"
 
 # test:  list all contacts for one individual (this is for the entire modeled lifespan)
 
@@ -385,16 +387,31 @@ contacts.ID.2 <- Rel.Start$B_ID[Rel.Start$A_ID == 2]
 
 # Now:
 
-# Pick a timespan of the simulated epidemic (2 years?)
-# (this N-year timespan is a proxy for a contact tracing sampling campaign)
+# Pick a timespan of the simulated epidemic (e.g. 1 or 2 years?)
+# (this N-year timespan is a proxy for a contact tracing and genetic sampling campaign)
 
 Rel.Start.1years <- Rel.Start[Rel.Start$Rel_start_time_YEARS > 50.0 & 
                                 Rel.Start$Rel_start_time_YEARS < 51.0, ]
 
-length(unique(Rel.Start.1years$A_ID))
 
-# Select a set of index HIV-infected and diagnosed individuals
+A_ID_HIVinfected <- Rel.Start.1years[Rel.Start.1years$A_HIV_Tested_Positive == 1, ]
+# str(A_ID_HIVinfected)
+# 'data.frame':	315 obs. of  53 variables
+
+B_ID_HIVinfected <- Rel.Start.1years[Rel.Start.1years$B_HIV_Tested_Positive == 1, ]
+# str(B_ID_HIVinfected)
+# 'data.frame':	2185 obs. of  53 variables
+
+
+
+length(unique(Rel.Start.1years$A_ID))
+# Number of total possible index individuals 
+
+# Select only the HIV-infected and diagnosed individuals from those A_ID index possibilities
 index.HIVinfected <- Rel.Start.1years[Rel.Start.1years$A_HIV_Tested_Positive == 1, ]
+
+length(unique(index.HIVinfected$Rel_ID))
+# 315 unique relationships during that time that involved at least one HIV+ individual
 length(unique(index.HIVinfected$A_ID))
 # 62 unique A_ID individuals
 length(unique(index.HIVinfected$B_ID))
@@ -402,6 +419,7 @@ length(unique(index.HIVinfected$B_ID))
 
 # Select a set of index non-HIV-infected individuals
 index.HIVuninfected <- Rel.Start.1years[Rel.Start.1years$A_HIV_Tested_Positive == 0, ]
+
 length(unique(index.HIVuninfected$A_ID))
 # 804 unique A_ID individuals
 length(unique(index.HIVuninfected$B_ID))
