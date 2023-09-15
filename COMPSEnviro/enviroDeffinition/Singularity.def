@@ -1,0 +1,36 @@
+Bootstrap: library
+From: ubuntu:20.04
+
+%files
+    requirements.txt /opt/requirements.txt
+    #HistoryMatching-0.1-py2.py3-none-any.whl /opt/HistoryMatching-0.1-py2.py3-none-any.whl
+    phyloModels-0.5-py2.py3-none-any.whl /opt/phyloModels-0.5-py2.py3-none-any.whl
+
+%post
+    apt-get update \
+    && apt-get install -y locales \
+    && apt-get install -y tzdata \
+    && apt-get install -y git \
+    && apt-get install -y software-properties-common \
+    && add-apt-repository universe \
+    && apt-get update \
+    && apt-get install -y r-base\
+    && apt-get install -y python3 \
+    && apt-get install -y python3-pip \
+    && pip3 install setuptools 
+
+    # if we don't clean this, it bloats the generated image size by a lot!
+    apt-get clean
+
+    pip3 install -r /opt/requirements.txt
+    #pip3 install --global-option=build_ext --global-option="-I/usr/local/cuda-10.0/targets/aarch64-linux/include/" --global-option="-L/usr/local/cuda-10.0/targets/aarch64-linux/lib/" pycuda
+    #pip3 install /opt/HistoryMatching-0.1-py2.py3-none-any.whl
+    pip3 install /opt/phyloModels-0.5-py2.py3-none-any.whl
+
+    Rscript -e 'install.packages("tidyverse", repos="https://cloud.r-project.org")'
+
+    # more cleanup
+    rm -rf /var/lib/apt/lists/* /var/tmp/* || true
+
+%runscript
+    echo Please specify a command. The default command for this container prints this message.

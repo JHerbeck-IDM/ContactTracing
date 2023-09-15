@@ -225,7 +225,7 @@ getPartners <- function(directory, index_individuals, look_back_duration, sim_st
                       contact_Risk=B_Risk,
                       contact_HIV_stage=B_HIV_disease_stage)
   maleIndex <- left_join(maleIndex,
-                         individuals[c('Individual_ID', 'begin_tracing','subset')],
+                         index_individuals[c('Individual_ID', 'begin_tracing','subset')],
                          by='Individual_ID')
   
   # Get relationships with female index individuals
@@ -244,7 +244,7 @@ getPartners <- function(directory, index_individuals, look_back_duration, sim_st
                         contact_Risk=A_Risk,
                         contact_HIV_stage=A_HIV_disease_stage)
   femaleIndex <- left_join(femaleIndex,
-                           individuals[c('Individual_ID', 'begin_tracing', 'subset')],
+                           index_individuals[c('Individual_ID', 'begin_tracing', 'subset')],
                            by='Individual_ID')
   rm(relationshipData)
   
@@ -394,7 +394,7 @@ doSampling <- function(directory='.', tracing_group='Incident_HIV',
   
   # Now that we have the sampled individuals and times add it to the transmission report
   transData <- read_csv(file.path('TransmissionReport.csv'))
-  transData <- left_join(transData, diagnosis, by=c('SRC_ID'='Individual_ID'))
+  transData <- left_join(transData, diagnosis, by=c('DEST_ID'='Individual_ID'))
   transData <- left_join(transData, sampleData[c('contact_ID',
                                                  'Individual_ID',
                                                  'trace_date',
@@ -414,6 +414,9 @@ doSampling <- function(directory='.', tracing_group='Incident_HIV',
   idx = which(transData$trace_date < transData$sampleTime)
   transData$traced_into[idx] = TRUE
   transData$sampleTime[idx] = transData$trace_date[idx]
+  
+  # Replace character NAs to smooth things over when data is pasted back to R
+  transData$contact_Risk[is.na(transData$contact_Risk)] = ''
   
   return(transData)
 }

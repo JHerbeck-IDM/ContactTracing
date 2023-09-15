@@ -1,0 +1,7 @@
+numpy
+pandas
+ete3
+seaborn
+plotnine
+statsmodels
+rpy2
