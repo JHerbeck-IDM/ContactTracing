@@ -135,7 +135,7 @@ from idmtools.assets import Asset, AssetCollection  #
 from idmtools.builders import SimulationBuilder
 from idmtools.entities.experiment import Experiment
 
-platform = Platform("IDMcloud", priority="Normal", num_retries=3)
+platform = Platform("Calculon", priority="Normal", num_retries=3)
 
 def run_test_in_thread(experiment_name="EMOD Clone & Run", python_path=None, config_path=None, sif_path=None):
     # Create a platform
