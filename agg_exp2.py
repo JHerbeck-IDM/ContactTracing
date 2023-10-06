@@ -12,7 +12,7 @@ from idmtools.entities.iworkflow_item import IWorkflowItem
 from idmtools.entities.simulation import Simulation
 
 # Experiment ID for the aggregation
-experiment_ID = ['39705271-4262-ee11-aa0b-b88303911bc1']
+experiment_ID = ['e8adf1e8-c163-ee11-aa0b-b88303911bc1']
 analysis_title = 'Aggergating experiment 2'
 
 # Get aggregate information

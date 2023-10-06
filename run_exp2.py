@@ -86,7 +86,7 @@ else:
 
 # Create the simulations within the experiment
 for i, sim in enumerate(data_sims):
-    proc_sim = Simulation('HIV Contact Tracing (exp 1)')
+    proc_sim = Simulation('HIV Contact Tracing (exp 2)')
     proc_sim.experiment_id = processing_exp.id
     proc_sim.set_tags({'uploadData_sim_id': sim.id, 'data_exp_id': data_exp.id, 'traceGroup': tracing_groups, 'sampleRate': sample_rates, 'traceRate': tracing_rates, 'traceStartTime': tracing_start_times, 'traceEndTime': tracing_end_times, 'tracingDelay': tracing_delays, 'lookBackWindow': look_back_durations, 'acuteToTrace': acute_to_traces, 'numGeneration': num_generations, 'sim_num': i})
     proc_sim.add_file(SimulationFile('WorkOrder.json', 'WorkOrder'), data=bytes(workorder_str, 'utf-8'))

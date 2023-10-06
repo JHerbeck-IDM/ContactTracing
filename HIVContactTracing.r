@@ -798,20 +798,20 @@ doIteractiveTracing <- function(directory='.', tracing_groups='Incident_HIV',
                     temp = temp %>% filter(!is.na(Contact_Infected))
                   }
                 for(tracing_group in tracing_groups){
-                  # mark the "positive diagnosis" if tracing is the "test"
-                  temp['result'] = FALSE
-                  if(tracing_group %in% c('Incident_HIV',
-                                          'Prevalent_HIV',
-                                          'Undiagnosed_HIV',
-                                          'HIV-')){
-                      temp$result[temp$Index_Subset == tracing_group] = TRUE
-                    } else if(tracing_group == 'HIV+'){
-                      temp$result[temp$Index_Subset == 'Incident_HIV'] = TRUE
-                      temp$result[temp$Index_Subset == 'Prevalent_HIV'] = TRUE
-                      temp$result[temp$Index_Subset == 'Undiagnosed_HIV'] = TRUE
-                    }
                   for(sample_rate in sample_rates){
                     for(tracing_rate in tracing_rates){
+                      # mark the "positive diagnosis" if tracing is the "test"
+                      temp['result'] = FALSE
+                      if(tracing_group %in% c('Incident_HIV',
+                                              'Prevalent_HIV',
+                                              'Undiagnosed_HIV',
+                                              'HIV-')){
+                        temp$result[temp$Index_Subset == tracing_group] = TRUE
+                      } else if(tracing_group == 'HIV+'){
+                        temp$result[temp$Index_Subset == 'Incident_HIV'] = TRUE
+                        temp$result[temp$Index_Subset == 'Prevalent_HIV'] = TRUE
+                        temp$result[temp$Index_Subset == 'Undiagnosed_HIV'] = TRUE
+                      }
                       # mark the "positive diagnosis" if tracing is the "test"
                       # select those enrolled in tracing
                       ids = unique(temp$Index_ID[temp$result])
