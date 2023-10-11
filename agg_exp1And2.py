@@ -12,8 +12,8 @@ from idmtools.entities.iworkflow_item import IWorkflowItem
 from idmtools.entities.simulation import Simulation
 
 # Experiment ID for the aggregation
-experiment_ID = ['e8adf1e8-c163-ee11-aa0b-b88303911bc1']
-analysis_title = 'Aggergating experiment 2'
+experiment_ID = ['71863131-0768-ee11-aa0b-b88303911bc1']
+analysis_title = 'Aggergating experiment 1 and 2'
 
 # Get aggregate information
 agg_columns = {'N_index': [nanmean, nanstd],
@@ -31,14 +31,20 @@ agg_columns = {'N_index': [nanmean, nanstd],
                'TN': [nanmean, nanstd],
                'TP': [nanmean, nanstd],
                'FN': [nanmean, nanstd],
+               'FPreduced': [nanmean, nanstd],
+               'TNreduced': [nanmean, nanstd],
+               'TPreduced': [nanmean, nanstd],
+               'FNreduced': [nanmean, nanstd],
                'P':  [nanmean, nanstd],
                'N':  [nanmean, nanstd], 
                'PP': [nanmean, nanstd],
+               'PPreduced': [nanmean, nanstd],
                'PN': [nanmean, nanstd],
                'total': [nanmean, nanstd],
                'prevalence': [nanmean, nanstd],
                'ACC': [nanmean, nanstd],
                'PPV': [nanmean, nanstd],
+               'PPVreduced': [nanmean, nanstd],
                'FDR': [nanmean, nanstd],
                'FOR': [nanmean, nanstd],
                'NPV': [nanmean, nanstd],
@@ -59,7 +65,8 @@ agg_columns = {'N_index': [nanmean, nanstd],
                'BA':  [nanmean, nanstd],
                'RR':  [nanmean, nanstd],
                'RRall': [nanmean, nanstd],
-               'RRHIV-': [nanmean, nanstd]}
+               'RRHIV-': [nanmean, nanstd],
+               'RRHIV-reduced': [nanmean, nanstd]}
 
 file_name = 'output.csv'
 class NNDistAnalyzer(BaseAnalyzer):
@@ -125,7 +132,6 @@ class NNDistAnalyzer(BaseAnalyzer):
                                           'tracing_delay',
                                           'look_back_duration',
                                           'acute_to_trace',
-                                          'unique_individuals',
                                           'generation'],
                 as_index=False).agg(agg_columns)
         out_data_mean.columns = out_data_mean.columns.map("_".join)

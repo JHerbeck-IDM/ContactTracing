@@ -90,9 +90,9 @@ getGroups <- function(directory, trace_start_time, trace_end_time, acute_to_trac
   ###                              ended.
   ###    acute_to_trace (bool)   : This flags whether the incidence infections
   ###                              (those whose contacts will be traced) are
-  ###                              just those diagnosed during the tracing period
-  ###                              or if they also need to be acute at the time
-  ###                              of diagnosis.
+  ###                              just those diagnosed during the tracing
+  ###                              period or if they have to have been
+  ###                              infected for less than 3 months.
   ### Return:
   ###    data frame              : Data frame with the aggregated data.
   ###    float                   : The time of the earliest event in the
@@ -146,31 +146,39 @@ getGroups <- function(directory, trace_start_time, trace_end_time, acute_to_trac
   # Create the three subgroups
   individuals['Index_Subset'] = 'HIV-'
   # Set everyone infected by the end of the trace period to the prevalent group
-  individuals$Index_Subset[individuals$Index_Infected<=trace_end_time] = 'Prevalent_HIV'
+  individuals$Index_Subset[individuals$Index_Infected<=trace_end_time %>%
+                             replace_na(FALSE)] = 'Prevalent_HIV'
   # In the wiki post incident and prevalent are only diagnosed individuals
   # Here I move the undiagnosed to a separate category commenting this out will
   # leave them as prevalent
   individuals$Index_Subset[individuals$Index_Infected<=trace_end_time &
                             (is.na(individuals$Index_Diagnosed) |
-                             individuals$Index_Diagnosed>=trace_end_time)
+                             individuals$Index_Diagnosed>trace_end_time) %>%
+                             replace_na(FALSE)
                            ] = 'Undiagnosed_HIV'
   if(acute_to_trace){
     # Only trace (incident) those that are recently diagnosed and acute
     individuals$Index_Subset[individuals$Index_Diagnosed>=trace_start_time &
                              individuals$Index_Diagnosed<=trace_end_time &
-                             (individuals$Index_Diagnosed - individuals$Index_Infected) <= 3/12] = 'Incident_HIV'
+                             ((individuals$Index_Diagnosed - individuals$Index_Infected) <= 3/12) %>%
+                               replace_na(FALSE)] = 'Incident_HIV'
     # Also trace those diagnosed before tracing starts, but still acute when tracing starts
-    individuals$Index_Subset[(individuals$Index_Diagnosed - individuals$Index_Infected) <= 3/12 &
-                             (trace_start_time - individuals$Index_Infected) <= 3/12] = 'Incident_HIV'
+    individuals$Index_Subset[((individuals$Index_Diagnosed - individuals$Index_Infected) <= 3/12) &
+                             (trace_start_time <= individuals$Index_Infected + 3/12) &
+                               individuals$Index_Diagnosed <= trace_end_time%>%
+                               replace_na(FALSE)] = 'Incident_HIV'
   } else{
     # Trace (incident) all recent diagnosed
     individuals$Index_Subset[individuals$Index_Diagnosed>=trace_start_time &
-                             individuals$Index_Diagnosed<=trace_end_time] = 'Incident_HIV'
+                             individuals$Index_Diagnosed<=trace_end_time %>%
+                               replace_na(FALSE)] = 'Incident_HIV'
   }
   individuals$Index_Subset <- factor(individuals$Index_Subset, levels=c('Incident_HIV',
                                                                         'Prevalent_HIV',
                                                                         'Undiagnosed_HIV',
-                                                                        'HIV-'))
+                                                                        'HIV-',
+                                                                        'HIV+',
+                                                                        'Untraceable'))
   
   # Make sure each person has a time that their contacts are traced
   individuals['begin_tracing'] = trace_start_time
@@ -363,51 +371,45 @@ transData <- transData %>%
 }
 
 
-### This function was written to prepare the data for building a tree. For now
-### it will not be used
-doSampling <- function(directory='.', tracing_group='Incident_HIV',
-                       sample_rate=100, tracing_rate=100,
-                       tracing_start_time=2010, tracing_end_time=2012,
-                       acute_to_trace=FALSE, look_back_duration=3,
-                       tracing_delay=0){
+### This function was written to prepare the data for building a tree.
+### Specifically, it does the tracing and assigns sample times to the sampled
+### individuals. Will include a random sample for comparison.
+doSampling <- function(directory='.', tracing_groups='Incident_HIV',
+                       n_samples=5000, tracing_start_times=2010,
+                       tracing_duration=2,
+                       acute_to_traces=FALSE, look_back_durations=3,
+                       tracing_delays=0){
   ### This function is ties every together and prepares the data for phyloModels
   ### to build the tree from.
   ###
   ### Inputs:
-  ###    directory (str)           : Path to directory where input files can be
-  ###                                found
-  ###    tracing_group (str)       : Which group/subset we are using for index
-  ###                                individuals
-  ###    sample_rate (float)       : Percentage of index individuals who actually
-  ###                                respond to tracing efforts
-  ###    tracing_rate (float)      : Success rate of tracing contacts gives as a
-  ###                                percentage
-  ###    trace_start_time (float)  : The date when the period for contract
-  ###                                tracing started.
-  ###    trace_end_time (float)    : The date when the period for contract
-  ###                                tracing ended.
-  ###    acute_to_trace (bool)     : This flags whether the incidence infections
-  ###                                (those whose contacts will be traced) are
-  ###                                just those diagnosed during the tracing
-  ###                                period or if they also need to be acute at
-  ###                                the time of diagnosis.
-  ###    look_back_duration (float): How far into the past individuals are asked
-  ###                                to remember contacts from
-  ###    tracing_delay (float)     : How long the tracing takes which effects
-  ###                                the sample time
+  ###    directory (str)            : Path to directory where input files can be
+  ###                                 found
+  ###    tracing_group (vector)     : Which group(s)/subset(s) we are using for
+  ###                                 index individuals. Current options are:
+  ###                                 HIV-, HIV+, HIV_Incident, HIV_Prevalent,
+  ###                                 HIV_Undiagnosed
+  ###    n_samples (vector)         : Number of samples to gather via tracing
+  ###    tracing_start_time (vector): The date(s) when the period for contract
+  ###                                 tracing starts
+  ###    tracing_duration (vector)  : The length of the tracing campaign. All
+  ###                                 samples will be gathered during the
+  ###                                 duration unless we have to go over to
+  ###                                 reach the requested number
+  ###    acute_to_trace (vector)    : This flags whether the incidence infections
+  ###                                 (those whose contacts will be traced) are
+  ###                                 just those diagnosed during the tracing
+  ###                                 period or if they have to have been
+  ###                                 infected for less than 3 months.
+  ###    look_back_duration (vector): How far into the past individuals are
+  ###                                 asked to remember contacts from
+  ###    tracing_delay (vector)     : How long it takes from a contact being
+  ###                                 named to them being contacted and tested
+  ###                                 which effects the sample time
   ###
   ### Return:
   ###    data frame                : Transmission line list for tracing
   ###                                information for building the tree
-  
-  # Do the tracing for everyone
-  individuals = getGroups(directory, tracing_start_time, tracing_end_time, acute_to_trace)
-  sim_start_year = individuals$start_year
-  individuals = individuals$df
-  contactData = getPartners(directory, individuals, look_back_duration, sim_start_year)
-  rm(individuals)
-  transData = getTransData(directory, contactData, tracing_delay)
-  rm(contactData)
   
   # Reduce tracing based on desired sampling
   # 1. restrict to the group/subset we are currently looking at
@@ -459,189 +461,98 @@ doSampling <- function(directory='.', tracing_group='Incident_HIV',
   # Replace character NAs to smooth things over when data is pasted back to R
   transData$contact_Risk[is.na(transData$contact_Risk)] = ''
   
-  return(transData)
-}
-
-
-doTracing <- function(directory='.', tracing_groups='Incident_HIV',
-                      sample_rates=100, tracing_rates=100,
-                      tracing_start_times=2010, tracing_end_times=2012,
-                      acute_to_traces=FALSE, look_back_durations=3,
-                      tracing_delays=0, unique_individuals=TRUE){
-  
-  # Create data frame to hold relative risk
-  col_names <- c('tracing_group',
-                 'comparison',
-                 'trait',
-                 'sample_rate',
-                 'tracing_rate',
-                 'tracing_start_time',
-                 'tracing_end_time',
-                 'campaign_duration',
-                 'tracing_delay',
-                 'look_back_duration',
-                 'acute_to_trace',
-                 'unique_individuals',
-                 'FP',
-                 'TN',
-                 'TP',
-                 'FN',
-                 'N_HIV',
-                 'N_untreated',
-                 'N_undiagnosed',
-                 'N_index',
-                 'contact_mean',
-                 'contact_std',
-                 'contacts_per_index',
-                 'unique_contacts_per_index')
-  RR = data.frame(matrix(NA,    # Create empty data frame
-                         nrow = length(tracing_groups) *
-                           length(comparisons) *
-                           length(traits) *
-                           length(sample_rates) *
-                           length(tracing_rates) *
-                           length(tracing_start_times) *
-                           length(tracing_end_times) *
-                           length(tracing_delays) *
-                           length(look_back_durations) *
-                           length(acute_to_traces),
-                         ncol = length(col_names)))
-  colnames(RR) <- col_names
-  # RR$contact_dist = list()
-  i = 1
+  lineList <- read_csv(file.path(directory, 'TransmissionReport.csv'))
+  eventReport <- read_csv(file.path(directory, 'ReportEventRecorder.csv'))
+  eventReport <- eventReport %>% select(Year, Event_Name, Individual_ID)
+  diagnosis <- getDiagnosis(eventReport)
+  diagnosis <- rename(diagnosis, DEST_Diagnosed = Diagnosis, DEST_ID = Individual_ID)
+  rm(eventReport)
+  lineList <- left_join(lineList, diagnosis, by=c('DEST_ID'='Individual_ID'))
+  rm(diagnosis)
+  # Iterate over tracing start times
   for(tracing_start_time in tracing_start_times){
-    for(tracing_end_time in tracing_end_times){
+    # Iterate over tracing end times
+    for(tracing_duration in tracing_durations){
+      # Iterate over tracing delays
       for(tracing_delay in tracing_delays){
+        # Iterate over look back periods
         for(look_back_duration in look_back_durations){
+          # Iterate over definitions of incident definitions
           for(acute_to_trace in acute_to_traces){
             # Do the tracing for everyone using the currently parameters that effect tracing
-            individuals = getGroups(directory, tracing_start_time, tracing_end_time, acute_to_trace)
+            # By having this here we can avoid repeating this step in the following loops
+            individuals = getGroups(directory, tracing_start_time, tracing_start_time+tracing_duration, acute_to_trace)
             sim_start_year = individuals$start_year
             individuals = individuals$df
+            # the index individuals are changing from one generation to the next
             contactData = getPartners(directory, individuals, look_back_duration, sim_start_year)
             rm(individuals)
             transData = getTransData(directory, contactData, tracing_start_time, tracing_delay)
+            transData$Index_Subset[is.na(transData$Index_Subset)] = 'Untraceable'
             rm(contactData)
-            for(tracing_group in tracing_groups){
-              for(comparison in comparisons){
-                for(trait in traits){
-                  for(sample_rate in sample_rates){
-                    for(tracing_rate in tracing_rates){
-                      for(unique_individual in unique_individuals){
-                        RR$tracing_group[i] = tracing_group
-                        RR$comparison[i] = comparison
-                        RR$trait[i] = trait
-                        RR$sample_rate[i] = sample_rate
-                        RR$tracing_rate[i] = tracing_rate
-                        RR$tracing_start_time[i] = tracing_start_time
-                        RR$tracing_end_time[i] = tracing_end_time
-                        RR$campaign_duration[i] = tracing_end_time - tracing_start_time
-                        RR$tracing_delay[i] = tracing_delay
-                        RR$look_back_duration[i] = look_back_duration
-                        RR$acute_to_trace[i] = acute_to_trace
-                        RR$unique_individuals[i] = unique_individual
-                        if(tracing_group %in% c('Incident_HIV',
-                                                'Prevalent_HIV',
-                                                'Undiagnosed_HIV',
-                                                'HIV-')){
-                          
-                          # mark the "positive diagnosis" if tracing is the "test"
-                          temp = transData
-                          temp['result'] = FALSE
-                          temp$result[temp$Index_Subset == tracing_group] = TRUE
-                        } else if(tracing_group == 'HIV+'){
-                          # mark the "positive diagnosis" if tracing is the "test"
-                          temp = transData
-                          temp['result'] = FALSE
-                          temp$result[temp$Index_Subset == 'Incident_HIV'] = TRUE
-                          temp$result[temp$Index_Subset == 'Prevalent_HIV'] = TRUE
-                          temp$result[temp$Index_Subset == 'Undiagnosed_HIV'] = TRUE
-                        }
-                        
-                        if(comparison == 'traceable'){
-                          if(sum(is.na(temp$Index_ID))==0){
-                            print('WARNING: traceable is same as all')
-                          }
-                          temp = temp %>% filter(!is.na(Index_ID))
-                        } else if(comparison == 'sampleableAtTrace'){
-                          temp = temp %>% filter(contact_HIV_stage != 0)
-                        } else if(comparison == 'sampleableEventually'){
-                          temp = temp %>% filter(!is.na(Contact_Infected))
-                        }
-                        
-                        # mark the "positive diagnosis" if tracing is the "test"
-                        # select those enrolled in tracing
-                        ids = unique(temp$Index_ID[temp$result])
-                        ids = ids[runif(length(ids), min=0, max=100)<=sample_rate]
-                        temp$result[! temp$Index_ID %in% ids] = FALSE
-                        # select the contacts that get traced/contacted
-                        ids = unique(temp$contact_ID[temp$result])
-                        ids = ids[runif(length(ids), min=0, max=100)<=tracing_rate]
-                        temp$result[! temp$contact_ID %in% ids] = FALSE
-                        RR$contacts_per_index[i] = length(temp$Index_ID[temp$result]) / length(unique(temp$Index_ID[temp$result]))
-                        
-                        # if(unique_individual){
-                        #   # Find which contacts are traced into
-                        #   temp <- temp %>% group_by(contact_ID) %>% mutate(traced = any(result))
-                        #   # Remove duplicates of traced contacts that are not traced
-                        #   temp <- temp %>% filter(!(!result & traced))
-                        #   # Resolve those that are contacts of more then one index person
-                        #   temp <- temp %>% group_by(contact_ID) %>% slice_min(order_by=contact_trace_date) %>% 
-                        #     filter(row_number() == sample(1:n(),1))
-                        #   # Make sure people are not indexes and contacts
-                        #   ids_both <- unique(temp$Index_ID[!is.na(temp$Index_ID) & temp$Index_ID %in% temp$contact_ID])
-                        #   both <- left_join(temp[c('Index_ID', 'Index_Diagnosed')], temp[c('contact_ID', 'contact_trace_date')], by=c('Index_ID'='contact_ID'))
-                        #   both <- both %>% filter(Index_ID %in% ids_both)
-                        #   # Remove those contacts that are index cases but never tracted into (I think this should remove no one)
-                        #   ids_to_remove = temp$contact_ID[(temp$contact_ID %in% ids_both & is.na(temp$contact_trace_date))]
-                        #   temp <- temp %>% filter( !(contact_ID %in% ids_to_remove) )
-                        #   both <- both %>% filter( !(Index_ID %in% ids_to_remove) )
-                        #   ids_both <- ids_both[!(ids_both %in% ids_to_remove)]
-                        #   # Remove those contacts that have already been diagnosed
-                        #   ids_to_remove = both$Index_ID[Index_Diagnosed <= contact_trace_date]
-                        #   temp <- temp %>% filter( !(contact_ID %in% ids_to_remove) )
-                        #   both <- both %>% filter( !(Index_ID %in% ids_to_remove) )
-                        #   ids_both <- ids_both[!(ids_both %in% ids_to_remove)]
-                        # }
-                        
-                        # mark the "positive disease" based on trait
-                        if(trait == 'trans_source'){
-                          temp['condition'] = (temp$num_trans_before + temp$num_trans_after) > 0
-                        } else if(trait == 'yet_to_transmit') {
-                          temp['condition'] = temp$num_trans_after > 0
-                        } else if(trait == 'recently_infected'){
-                          temp['condition'] = temp$contact_HIV_stage == 1
-                        } else if(trait == 'high_risk'){
-                          temp['condition'] = temp$contact_Risk == 'HIGH'
-                        } else if(trait == 'not_yet_infected'){
-                          temp['condition'] = temp$contact_trace_date < temp$Contact_Infected
-                          temp$condition[is.na(temp$condition)] = FALSE
-                        }
-                        
-                        # set confusion matrix
-                        RR$FP[i] = sum( temp$result & !temp$condition)
-                        RR$TN[i] = sum(!temp$result & !temp$condition)
-                        RR$TP[i] = sum( temp$result &  temp$condition)
-                        RR$FN[i] = sum(!temp$result &  temp$condition)
-                        RR$N_HIV[i] = sum(temp$result & (temp$contact_HIV_stage != 0) & (temp$Contact_Infected <= temp$contact_trace_date))
-                        RR$N_untreated[i] = sum(temp$result & (temp$contact_HIV_stage != 0) & (temp$contact_HIV_stage != 4))
-                        RR$N_undiagnosed[i] = sum(temp$result & (temp$contact_HIV_stage != 0) & (temp$Contact_Diagnosed > temp$contact_trace_date), na.rm=TRUE)
-                        RR$N_index[i] = length(unique(temp$Index_ID[temp$result]))
-                        RR$unique_contacts_per_index[i] = length(temp$Index_ID[temp$result]) / RR$N_index[i]
-                        contact_dist = temp %>% filter(result) %>% group_by(Index_ID) %>% summarise(n_contact=n())
-                        dist = tabulate(contact_dist$n_contact[!is.na(contact_dist$Index_ID)])
-                        if(any(is.na(contact_dist$Index_ID))){
-                          dist = c(contact_dist$n_contact[is.na(contact_dist$Index_ID)], dist)  
-                        } else {
-                          dist = c(0, dist)
-                        }
-                        RR$contact_mean[i] = mean(contact_dist$n_contact[!is.na(contact_dist$Index_ID)])
-                        RR$contact_std[i] = sd(contact_dist$n_contact[!is.na(contact_dist$Index_ID)])
-                        i = i + 1
-                      }
-                    }
-                  }
+            # Iterate over the number of samples
+            for(n_sample in n_samples){
+              # Iterate over tracing groups
+              for(tracing_group in tracing_groups){
+                ## Select samples
+                temp = transData
+                
+                # Restrict to the group/subset we are currently looking at
+                if(tracing_group %in% c('HIV+')){
+                  temp$Index_Subset[temp$Index_Subset %in% c('Incident_HIV',
+                                                             'Prevalent_HIV',
+                                                             'Undiagnosed_HIV')] = 'HIV+'
                 }
+                temp = temp %>% filter(Index_Subset == tracing_group)
+                
+                # Remove those that are not infected before they are traced into
+                temp = temp %>% filter(Contact_Infected <= contact_trace_date %>% 
+                                         replace_na(FALSE))
+                
+                # Get a count of how many people could be sampled
+                N_infections = length(unique(c(temp$Index_ID[temp$Index_Diagnosed<=tracing_start_time+tracing_duration],
+                                               temp$contact_ID)))
+                # Test if we have enough potential samples
+                if(N_infections < n_sample){
+                  print('WARNING...Not enough infections in tracing window to hit sample request')
+                }
+                
+                # Get an idea of how many index versus contacts to draw to reach the requested number of samples
+                N_index = length(unique(temp$Index_ID[temp$Index_Diagnosed<=tracing_start_time+tracing_duration]))
+                contacts_per_index = length(unique(temp$contact_ID))/N_index
+                N_index_sample = ceiling(n_sample/(contacts_per_index+1))
+                
+                # Select indexes to sample
+                index_sampled = temp %>% filter(temp$Index_Diagnosed<=tracing_start_time+tracing_duration) %>% 
+                  select(Index_ID) %>% unique() %>%
+                  filter(row_number() %in% sample(1:n(),N_index_sample))
+                index_sampled <- left_join(index_sampled, temp %>%
+                                             select(Index_ID, Index_Diagnosed) %>% 
+                                             distinct(), by='Index_ID')
+                samples_remaining = n_sample - length(index_sampled$Index_ID)
+                
+                # Remove sampled index cases as contacts of other index cases
+                temp <- temp %>% filter(! contact_ID %in% index_sampled$Index_ID)
+                
+                # Sample contacts
+                N_contacts = length(unique(temp$contact_ID[temp$Index_ID %in% index_sampled$Index_ID]))
+                if(samples_remaining <= N_contacts){
+                  contacts_sampled = temp %>% filter(temp$Index_ID %in% index_sampled$Index_ID) %>% 
+                    select(contact_ID) %>% unique() %>%
+                    filter(row_number() %in% sample(1:n(),samples_remaining))
+                  contacts_sampled <- left_join(contacts_sampled, temp %>%
+                                                  filter(Index_ID %in% index_sampled$Index_ID) %>% 
+                                                  select(contact_ID, contact_trace_date),
+                                                by='contact_ID')
+                  contacts_sampled <- contacts_sampled %>% group_by(contact_ID) %>%
+                    filter(row_number() == sample(1:n(),1))
+                } else {
+                  
+                }
+                index_sampled <- rename(index_sampled, DEST_ID = Index_ID, 'Sampled_TG-{tracing_group}_TST-{tracing_start_time}_TL-{tracing_duration}_TD-{tracing_delay}_LBD-{look_back_duration}_NS-{n_sample}' := Index_Diagnosed)
+                contacts_sampled <- rename(contacts_sampled, DEST_ID = contact_ID, 'Sampled_TG-{tracing_group}_TST-{tracing_start_time}_TL-{tracing_duration}_TD-{tracing_delay}_LBD-{look_back_duration}_NS-{n_sample}' = contact_trace_date)
+                sampledData <- bind_rows(index_sampled, contacts_sampled)
+                lineList <- left_join(lineList, sampledData, by='DEST_ID')
               }
             }
           }
@@ -650,87 +561,52 @@ doTracing <- function(directory='.', tracing_groups='Incident_HIV',
     }
   }
   
-  # Actual Positives
-  RR['P'] = RR['TP'] + RR['FN']
-  # Actual Negatives
-  RR['N'] = RR['FP'] + RR['TN']
-  # Predicted Positives
-  RR['PP'] = RR['TP'] + RR['FP']
-  # Predicted Negatives
-  RR['PN'] = RR['FN'] + RR['TN']
-  # Total Population
-  RR['total'] = RR['P'] + RR['N']
-  # Prevalence
-  RR['prevalence'] = RR['P'] / RR['total']
-  # Percent of contacts HIV+
-  RR['percent_HIV'] = RR['N_HIV']/RR['PP']
-  # Number needed to trace positive
-  RR['NNTTP'] = RR['N_index']/RR['N_HIV']
-  # Number needed to trace untreated
-  RR['NNTTT'] = RR['N_index']/RR['N_untreated']
-  # Number needed to trace undiagnosed
-  RR['NNTTD'] = RR['N_index']/RR['N_undiagnosed']
-  
-  # Accuracy
-  RR['ACC'] = (RR['TP'] + RR['TN']) / RR['total']
-  # Positive Predictive Value
-  RR['PPV'] = RR['TP'] / RR['PP']
-  # False Discovery Rate
-  RR['FDR'] = RR['FP'] / RR['PP']
-  # False Omission Rate
-  RR['FOR'] = RR['FN'] / RR['PN']
-  # Negative Predictive Value
-  RR['NPV'] = RR['TN'] / RR['PN']
-  
-  # True Positive Rate
-  RR['TPR'] = RR['TP'] / RR['P']
-  # False Positive Rate
-  RR['FPR'] = RR['FP'] / RR['N']
-  # False Negative Rate
-  RR['FNR'] = RR['FN'] / RR['P']
-  # True Negative Rate
-  RR['TNR'] = RR['TN'] / RR['N']
-  
-  # Positive Likelihood Ratio
-  RR['LRP'] = RR['TPR'] / RR['FPR']
-  # Negative Likelihood Ratio
-  RR['LRN'] = RR['FNR'] / RR['TNR']
-  # Diagnostic Odds Ratio
-  RR['DOR'] = RR['LRP'] / RR['LRN']
-  
-  # Threat Score
-  RR['TS'] = RR['TP'] / (RR['TP'] + RR['FN'] + RR['FP'])
-  # Informedness
-  RR['informedness'] = RR['TPR'] + RR['TNR'] - 1
-  # Markedness
-  RR['markedness'] = RR['PPV'] + RR['NPV'] - 1
-  # Prevalence Threshold
-  RR['prevalenceThreshold'] = (sqrt(RR['TPR'] * RR['FPR']) - RR['FPR']) / (
-    RR['TPR'] - RR['FPR'])
-  # Matthews Correlation Coefficient
-  RR['MCC'] = sqrt(RR['TPR'] * RR['TNR'] * RR['PPV'] * RR['NPV']) - sqrt(
-    RR['FNR'] * RR['FPR'] * RR['FOR'] * RR['FDR'])
-  # Fowlkes-Mallows Index
-  RR['FMI'] = sqrt(RR['PPV'] * RR['TPR'])
-  # F1 Score
-  RR['F1'] = 2 * RR['PPV'] * RR['TPR'] / (RR['PPV'] + RR['TPR'])
-  # Balanced Accuracy
-  RR['BA'] = (RR['TPR'] + RR['TNR']) / 2
-  # Relative Risk vs comparison
-  RR['RR'] = RR['PPV'] / RR['FOR']
-  # Relative Risk vs all
-  RR['RRall'] = RR['PPV'] / (RR['P'] / RR['total'])
-  
-  # write.table(RR, file.path(directory, 'RROutput.csv'), sep=',', dec='.', row.names=FALSE)
-  return(RR)
+  return(transData)
 }
 
-doIteractiveTracing <- function(directory='.', tracing_groups='Incident_HIV',
-                                sample_rates=100, tracing_rates=100,
-                                tracing_start_times=2010, tracing_end_times=2012,
-                                acute_to_traces=FALSE, look_back_durations=3,
-                                tracing_delays=0, unique_individuals=TRUE,
-                                num_generations=3){
+### This function is for doing the tracing analysis (experiments 1 and 2). It
+### takes in the various options for doing tracing, does the tracing, and
+### calculates various statistics 
+doTracingAnalysis <- function(directory='.', tracing_groups='Incident_HIV',
+                              sample_rates=100, tracing_rates=100,
+                              tracing_start_times=2010, tracing_end_times=2012,
+                              acute_to_traces=FALSE, look_back_durations=3,
+                              tracing_delays=0, num_generations=3){
+  ### This function does the tracing and calculates various metrics on how the
+  ### tracing preforms. All the inputs that are listed as vector can also
+  ### receive a single value. TODO: replace tracing_end_times with duration
+  ###
+  ### Inputs:
+  ###    directory (str)            : Path to directory where input files can be
+  ###                                 found
+  ###    tracing_group (vector)     : Which group(s)/subset(s) we are using for
+  ###                                 index individuals. Current options are:
+  ###                                 HIV-, HIV+, HIV_Incident, HIV_Prevalent,
+  ###                                 HIV_Undiagnosed
+  ###    sample_rate (vector)       : Percentage(s) of index individuals who
+  ###                                 actually respond to tracing efforts
+  ###    tracing_rate (vector)      : Success rate(s) of tracing contacts gives
+  ###                                 as a percentage
+  ###    trace_start_time (vector)  : The date(s) when the period for contract
+  ###                                 tracing starts
+  ###    trace_end_time (vector)    : The date(s) when the period for contract
+  ###                                 tracing ends
+  ###    acute_to_trace (vector)    : This flags whether the incidence infections
+  ###                                 (those whose contacts will be traced) are
+  ###                                 just those diagnosed during the tracing
+  ###                                 period or if they have to have been
+  ###                                 infected for less than 3 months.
+  ###    look_back_duration (vector): How far into the past individuals are
+  ###                                 asked to remember contacts from
+  ###    tracing_delay (vector)     : How long it takes from a contact being
+  ###                                 named to them being contacted and tested
+  ###                                 which effects the sample time
+  ###    num_generations (vector)   : Number of generations to trace for
+  ###
+  ### Return:
+  ###    data frame                : A data frame containing the metrics of the
+  ###                                tracing analysis
+  
   # Create data frame to hold relative risk
   col_names <- c('tracing_group',
                  'comparison',
@@ -743,12 +619,15 @@ doIteractiveTracing <- function(directory='.', tracing_groups='Incident_HIV',
                  'tracing_delay',
                  'look_back_duration',
                  'acute_to_trace',
-                 'unique_individuals',
                  'generation',
                  'FP',
                  'TN',
                  'TP',
                  'FN',
+                 'FPreduced',
+                 'TNreduced',
+                 'TPreduced',
+                 'FNreduced',
                  'N_HIV',
                  'N_untreated',
                  'N_undiagnosed',
@@ -771,21 +650,35 @@ doIteractiveTracing <- function(directory='.', tracing_groups='Incident_HIV',
                          ncol = length(col_names)))
   colnames(RR) <- col_names
   # RR$contact_dist = list()
+  # Have a counter for the row
   i = 1
+  # Iterate over tracing start times
   for(tracing_start_time in tracing_start_times){
+    # Iterate over tracing end times
     for(tracing_end_time in tracing_end_times){
+      # Iterate over tracing delays
       for(tracing_delay in tracing_delays){
+        # Iterate over look back periods
         for(look_back_duration in look_back_durations){
+          # Iterate over definitions of incident definitions
           for(acute_to_trace in acute_to_traces){
             # Do the tracing for everyone using the currently parameters that effect tracing
+            # By having this here we can avoid repeating this step in the following loops
             individuals = getGroups(directory, tracing_start_time, tracing_end_time, acute_to_trace)
             sim_start_year = individuals$start_year
             individuals = individuals$df
+            # Iteration of the number of generations
             for(generation in seq(num_generations)){
+              # For each generation we have to re-generate the contacts list as 
+              # the index individuals are changing from one generation to the next
               contactData = getPartners(directory, individuals, look_back_duration, sim_start_year)
               transData = getTransData(directory, contactData, tracing_start_time, tracing_delay)
               rm(contactData)
+              # Iterate over the populations.
               for(comparison in comparisons){
+                # In this loop members of the population are removed so a copy
+                # of the data is made to increase our reuse of previous
+                # calculations
                 temp = transData
                 if(comparison == 'traceable'){
                   if(sum(is.na(temp$Index_ID))==0){
@@ -797,8 +690,11 @@ doIteractiveTracing <- function(directory='.', tracing_groups='Incident_HIV',
                   } else if(comparison == 'sampleableEventually'){
                     temp = temp %>% filter(!is.na(Contact_Infected))
                   }
+                # Iterate over tracing groups
                 for(tracing_group in tracing_groups){
+                  # Iterate over enrollment rates
                   for(sample_rate in sample_rates){
+                    # Iterate over tracing rates
                     for(tracing_rate in tracing_rates){
                       # mark the "positive diagnosis" if tracing is the "test"
                       temp['result'] = FALSE
@@ -812,67 +708,85 @@ doIteractiveTracing <- function(directory='.', tracing_groups='Incident_HIV',
                         temp$result[temp$Index_Subset == 'Prevalent_HIV'] = TRUE
                         temp$result[temp$Index_Subset == 'Undiagnosed_HIV'] = TRUE
                       }
+                      
                       # mark the "positive diagnosis" if tracing is the "test"
                       # select those enrolled in tracing
                       ids = unique(temp$Index_ID[temp$result])
                       ids = ids[runif(length(ids), min=0, max=100)<=100*((sample_rate/100)^generation*(tracing_rate/100)^(generation-1))]
                       temp$result[! temp$Index_ID %in% ids] = FALSE
+                      N_index = length(unique(temp$Index_ID[temp$result]))
                       # select the contacts that get traced/contacted
                       ids = unique(temp$contact_ID[temp$result])
                       ids = ids[runif(length(ids), min=0, max=100)<=tracing_rate]
                       temp$result[! temp$contact_ID %in% ids] = FALSE
-                      for(unique_individual in unique_individuals){
-                        for(trait in traits){
-                          # mark the "positive disease" based on trait
-                          if(trait == 'trans_source'){
-                            temp['condition'] = (temp$num_trans_before + temp$num_trans_after) > 0
-                          } else if(trait == 'yet_to_transmit') {
-                            temp['condition'] = temp$num_trans_after > 0
-                          } else if(trait == 'recently_infected'){
-                            temp['condition'] = temp$contact_HIV_stage == 1
-                          } else if(trait == 'high_risk'){
-                            temp['condition'] = temp$contact_Risk == 'HIGH'
-                          } else if(trait == 'not_yet_infected'){
-                            temp['condition'] = temp$contact_trace_date < temp$Contact_Infected
-                            temp$condition[is.na(temp$condition)] = FALSE
-                          }
-                          
-                          # Save parameters and some population statistics
-                          RR$tracing_group[i] = tracing_group
-                          RR$comparison[i] = comparison
-                          RR$trait[i] = trait
-                          RR$sample_rate[i] = sample_rate
-                          RR$tracing_rate[i] = tracing_rate
-                          RR$tracing_start_time[i] = tracing_start_time
-                          RR$tracing_end_time[i] = tracing_end_time
-                          RR$campaign_duration[i] = tracing_end_time - tracing_start_time
-                          RR$tracing_delay[i] = tracing_delay
-                          RR$look_back_duration[i] = look_back_duration
-                          RR$acute_to_trace[i] = acute_to_trace
-                          RR$unique_individuals[i] = unique_individual
-                          RR$generation[i] = generation
-                          RR$contacts_per_index[i] = length(temp$Index_ID[temp$result]) / length(unique(temp$Index_ID[temp$result]))
-                          
-                          # set confusion matrix
-                          RR$FP[i] = sum( temp$result & !temp$condition)
-                          RR$TN[i] = sum(!temp$result & !temp$condition)
-                          RR$TP[i] = sum( temp$result &  temp$condition)
-                          RR$FN[i] = sum(!temp$result &  temp$condition)
-                          RR$N_HIV[i] = sum(temp$result & (temp$contact_HIV_stage != 0) & (temp$Contact_Infected <= temp$contact_trace_date))
-                          RR$N_untreated[i] = sum(temp$result & (temp$contact_HIV_stage != 0) & (temp$contact_HIV_stage != 4))
-                          RR$N_undiagnosed[i] = sum(temp$result & (temp$contact_HIV_stage != 0) & (temp$Contact_Diagnosed > temp$contact_trace_date), na.rm=TRUE)
-                          RR$N_index[i] = length(unique(temp$Index_ID[temp$result]))
-                          contact_dist = temp %>% filter(result) %>% group_by(Index_ID) %>% summarise(n_contact=n())
-                          dist = tabulate(contact_dist$n_contact[!is.na(contact_dist$Index_ID)])
-                          if(any(is.na(contact_dist$Index_ID))){
-                            dist = c(contact_dist$n_contact[is.na(contact_dist$Index_ID)], dist)  
-                          } else {
-                            dist = c(0, dist)
-                          }
-                          RR$contact_mean[i] = mean(contact_dist$n_contact[!is.na(contact_dist$Index_ID)])
-                          RR$contact_std[i] = sd(contact_dist$n_contact[!is.na(contact_dist$Index_ID)])
-                          i = i + 1
+                      N_index_0 = N_index - length(unique(temp$Index_ID[temp$result]))
+                      # Iterate over traits to be consider the 'disease'
+                      for(trait in traits){
+                        # mark the "positive disease" based on trait
+                        if(trait == 'trans_source'){
+                          temp['condition'] = (temp$num_trans_before + temp$num_trans_after) > 0
+                        } else if(trait == 'yet_to_transmit') {
+                          temp['condition'] = temp$num_trans_after > 0
+                        } else if(trait == 'recently_infected'){
+                          temp['condition'] = temp$contact_HIV_stage == 1
+                        } else if(trait == 'high_risk'){
+                          temp['condition'] = temp$contact_Risk == 'HIGH'
+                        } else if(trait == 'not_yet_infected'){
+                          temp['condition'] = temp$contact_trace_date < temp$Contact_Infected
+                          temp$condition[is.na(temp$condition)] = FALSE
                         }
+                        
+                        # Save parameters and some population statistics
+                        RR$tracing_group[i] = tracing_group
+                        RR$comparison[i] = comparison
+                        RR$trait[i] = trait
+                        RR$sample_rate[i] = sample_rate
+                        RR$tracing_rate[i] = tracing_rate
+                        RR$tracing_start_time[i] = tracing_start_time
+                        RR$tracing_end_time[i] = tracing_end_time
+                        RR$campaign_duration[i] = tracing_end_time - tracing_start_time
+                        RR$tracing_delay[i] = tracing_delay
+                        RR$look_back_duration[i] = look_back_duration
+                        RR$acute_to_trace[i] = acute_to_trace
+                        RR$generation[i] = generation
+                        RR$contacts_per_index[i] = length(temp$Index_ID[temp$result]) / N_index
+                        RR$N_HIV[i] = sum(temp$result & (temp$contact_HIV_stage != 0) & (temp$Contact_Infected <= temp$contact_trace_date))
+                        RR$N_untreated[i] = sum(temp$result & (temp$contact_HIV_stage != 0) & (temp$contact_HIV_stage != 4))
+                        RR$N_undiagnosed[i] = sum(temp$result & (temp$contact_HIV_stage != 0) & (temp$Contact_Diagnosed > temp$contact_trace_date), na.rm=TRUE)
+                        RR$N_index[i] = N_index
+                        contact_dist = temp %>% filter(result) %>% group_by(Index_ID) %>% summarise(n_contact=n())
+                        dist = tabulate(contact_dist$n_contact[!is.na(contact_dist$Index_ID)])
+                        # if(any(is.na(contact_dist$Index_ID))){
+                        #   dist = c(contact_dist$n_contact[is.na(contact_dist$Index_ID)], dist)  
+                        # } else {
+                        #   dist = c(0, dist)
+                        # }
+                        # RR$contact_mean[i] = mean(contact_dist$n_contact[!is.na(contact_dist$Index_ID)])
+                        # RR$contact_std[i] = sd(contact_dist$n_contact[!is.na(contact_dist$Index_ID)])
+                        dist = c(N_index_0, dist)
+                        RR$contact_mean[i] = weighted.mean(seq(0,length(dist)-1), dist, na.rm=TRUE)
+                        RR$contact_std[i] = sqrt(weighted.mean( (seq(0,length(dist)-1)-RR$contact_mean[i])^2, dist, na.rm=TRUE ))
+                        
+                        # set confusion matrix
+                        RR$FP[i] = sum( temp$result & !temp$condition)
+                        RR$TN[i] = sum(!temp$result & !temp$condition)
+                        RR$TP[i] = sum( temp$result &  temp$condition)
+                        RR$FN[i] = sum(!temp$result &  temp$condition)
+                        
+                        # remove duplicates
+                        # start by removing non-contacts that also appear as contacts
+                        temp2 <- temp %>% filter( !(!result & (contact_ID %in% contact_ID[result])) )
+                        # next remove contacts/non-contacts that are also index individuals
+                        temp2 <- temp2 %>% filter( !( (contact_ID %in% Index_ID[result])) )
+                        # lastly remove any contacts/non-contacts that appear multiple times
+                        temp2 <- temp2 %>% group_by(contact_ID) %>% filter(row_number() == sample(1:n(),1))
+                        
+                        # set reduced confusion matrix
+                        RR$FPreduced[i] = sum( temp2$result & !temp2$condition)
+                        RR$TNreduced[i] = sum(!temp2$result & !temp2$condition)
+                        RR$TPreduced[i] = sum( temp2$result &  temp2$condition)
+                        RR$FNreduced[i] = sum(!temp2$result &  temp2$condition)
+                        i = i + 1
                       }
                     }
                   }
@@ -893,12 +807,15 @@ doIteractiveTracing <- function(directory='.', tracing_groups='Incident_HIV',
     }
   }
   
+  ## Calculate statistics
+  
   # Actual Positives
   RR['P'] = RR['TP'] + RR['FN']
   # Actual Negatives
   RR['N'] = RR['FP'] + RR['TN']
   # Predicted Positives
   RR['PP'] = RR['TP'] + RR['FP']
+  RR['PPreduced'] = RR['TPreduced'] + RR['FPreduced']
   # Predicted Negatives
   RR['PN'] = RR['FN'] + RR['TN']
   # Total Population
@@ -918,6 +835,7 @@ doIteractiveTracing <- function(directory='.', tracing_groups='Incident_HIV',
   RR['ACC'] = (RR['TP'] + RR['TN']) / RR['total']
   # Positive Predictive Value
   RR['PPV'] = RR['TP'] / RR['PP']
+  RR['PPVreduced'] = RR['TPreduced'] / RR['PPreduced']
   # False Discovery Rate
   RR['FDR'] = RR['FP'] / RR['PP']
   # False Omission Rate
@@ -964,6 +882,7 @@ doIteractiveTracing <- function(directory='.', tracing_groups='Incident_HIV',
   # Relative Risk vs all
   RR['RRall'] = RR['PPV'] / (RR['P'] / RR['total'])
   
+  # Get relative risk compared to the HIV- index group
   RR <- RR %>% group_by(comparison,
                         trait,
                         sample_rate,
@@ -973,7 +892,8 @@ doIteractiveTracing <- function(directory='.', tracing_groups='Incident_HIV',
                         tracing_delay,
                         look_back_duration,
                         acute_to_trace,
-                        generation) %>% mutate('RRHIV-' = PPV/PPV[tracing_group=='HIV-'])
+                        generation) %>% mutate('RRHIV-' = PPV/PPV[tracing_group=='HIV-'],
+                                               'RRHIV-reduced' = PPVreduced/PPVreduced[tracing_group=='HIV-'])
   
   # write.table(RR, file.path(directory, 'RROutput.csv'), sep=',', dec='.', row.names=FALSE)
   return(RR)

@@ -26,11 +26,12 @@ compshost = 'https://comps.idmod.org'
 compsenv = 'Calculon'
 pri = 'Normal'		# Lowest, BelowNormal, Normal, AboveNormal, Highest
 ac_id = '7aaf4bfe-0557-ee11-aa0a-b88303911bc1'
+exp_name = 'exp 1 and 2'
 
 
 # Need to make lists strings for passing to the scripts actually doing the work
 tracing_groups='HIV+, Incident_HIV, HIV-, Prevalent_HIV, Undiagnosed_HIV'
-comparisons = 'all, traceable, sampleableAtTrace, sampleableEventually'
+comparisons = 'traceable, sampleableAtTrace, sampleableEventually'
 sample_rates='100, 75, 50, 25'
 tracing_rates='100, 75, 50, 25'
 tracing_start_times='2010'
@@ -39,17 +40,16 @@ acute_to_traces='TRUE'
 look_back_durations='3'
 tracing_delays='0'
 traits = 'trans_source, yet_to_transmit, recently_infected, high_risk, not_yet_infected'
-unique_individuals = 'FALSE'
-num_generations=10
+num_generations=4
 
-exp_name = 'HIV contact tracing iteration analysis  (' + tracing_groups + \
+exp_name = 'HIV contact tracing ' + exp_name + ' (' + tracing_groups + \
      ', sample rates: ' + sample_rates + ', tracing rates: ' + tracing_rates + \
      ', tracing start times: ' + tracing_start_times + ', tracing end times: ' + \
      tracing_end_times + ')'
 
 # This is the actual command to be run on COMPS
 workorder_str = f"""{{
-    "Command": "singularity exec Assets/tree_stats_analysis.sif Rscript exp2.r",
+    "Command": "singularity exec Assets/tree_stats_analysis.sif Rscript exp1And2.r",
     "NumCores": 1,
     "NumNodes": 1,
     "NodeGroupName": "idm_abcd"
@@ -86,13 +86,13 @@ else:
 
 # Create the simulations within the experiment
 for i, sim in enumerate(data_sims):
-    proc_sim = Simulation('HIV Contact Tracing (exp 2)')
+    proc_sim = Simulation('HIV Contact Tracing (' + exp_name + ')')
     proc_sim.experiment_id = processing_exp.id
     proc_sim.set_tags({'uploadData_sim_id': sim.id, 'data_exp_id': data_exp.id, 'traceGroup': tracing_groups, 'sampleRate': sample_rates, 'traceRate': tracing_rates, 'traceStartTime': tracing_start_times, 'traceEndTime': tracing_end_times, 'tracingDelay': tracing_delays, 'lookBackWindow': look_back_durations, 'acuteToTrace': acute_to_traces, 'numGeneration': num_generations, 'sim_num': i})
     proc_sim.add_file(SimulationFile('WorkOrder.json', 'WorkOrder'), data=bytes(workorder_str, 'utf-8'))
     # proc_sim.add_file(SimulationFile('buildTrees.py', 'input'), file_path='buildTrees.py')
     proc_sim.add_file(SimulationFile('HIVContactTracing.r', 'input'), file_path='HIVContactTracing.r')
-    proc_sim.add_file(SimulationFile('exp2.r', 'input'), file_path='exp2.r')
+    proc_sim.add_file(SimulationFile('exp1And2.r', 'input'), file_path='exp1And2.r')
 
     working_dir = sim.hpc_jobs[-1].working_directory
     print(working_dir)
