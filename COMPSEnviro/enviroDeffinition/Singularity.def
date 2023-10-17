@@ -14,12 +14,24 @@ From: ubuntu:20.04
     && apt-get install -y software-properties-common \
     && add-apt-repository universe \
     && apt-get update \
-    && apt-get install -y r-base\
+    && apt-get install -y r-base \
+    && apt-get install -y libxml2-dev \
+    && apt-get install -y libcurl4-openssl-dev \
+    && apt-get install -y libssl-dev \
+    && apt-get install -y libtiff5-dev \
+    && apt-get install -y libfreetype6-dev \
+    && apt-get install -y libpng-dev \
+    && apt-get install -y libjpeg-dev \
+    && apt-get install -y libfontconfig1-dev \
+    && apt-get install -y libfribidi-dev \
     && apt-get install -y python3 \
     && apt-get install -y python3-pip \
     && pip3 install setuptools 
+    apt-get install -y libharfbuzz-dev 
+    # apt install -y libharfbuzz-dev 
 
     # if we don't clean this, it bloats the generated image size by a lot!
+    # && apt-get install -y libharfbuzz-dev \ 
     apt-get clean
 
     pip3 install -r /opt/requirements.txt
@@ -27,10 +39,10 @@ From: ubuntu:20.04
     #pip3 install /opt/HistoryMatching-0.1-py2.py3-none-any.whl
     pip3 install /opt/phyloModels-0.5-py2.py3-none-any.whl
 
-    Rscript -e 'install.packages("tidyverse", repos="https://cloud.r-project.org")'
+    Rscript -e 'install.packages("tidyverse", repos="https://cloud.r-project.org", dependencies=TRUE)'
 
     # more cleanup
-    rm -rf /var/lib/apt/lists/* /var/tmp/* || true
+    rm -rf /var/lib/apt-get/lists/* /var/tmp/* || true
 
 %runscript
     echo Please specify a command. The default command for this container prints this message.
