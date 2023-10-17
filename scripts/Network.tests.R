@@ -126,25 +126,25 @@ plot(Eswatini.counts$x, log10(Eswatini.counts$freq/sum(Eswatini.counts$freq)),
 
 ### Atlanta
 
-Atlanta.counts <- read.csv("Atlanta/edge_counts.csv", header=T) 
+Atlanta.counts <- read.csv("input.files/Atlanta/edge_counts.csv", header=T) 
 
 # Log10 frequency
 
-plot(Atlanta.counts$count, log10(Atlanta.counts$sim1_1/sum(Atlanta.counts$sim1_1)), 
+plot(log10(Atlanta.counts$count), log10(Atlanta.counts$sim1_1/sum(Atlanta.counts$sim1_1)), 
      col = "red",
      ylab = "log10 frequency",
      xlab = "Partners per year",
      pch = 16,
      ylim = c(-5, 0),
      main = "Partners per year")
-text(20, log10(0.5), paste(sum(Atlanta.counts$sim1_1), " total individuals with relationships, Atlanta"))
+#text(log10(20), log10(0.5), paste(sum(Atlanta.counts$sim1_1), " total individuals with relationships, Atlanta"))
 
-points(Eswatini.counts$x, log10(Eswatini.counts$freq/sum(Eswatini.counts$freq)), 
+points(log10(Eswatini.counts$x), log10(Eswatini.counts$freq/sum(Eswatini.counts$freq)), 
        col = "blue",
        pch = 16)
-text(20, log10(0.0001), paste(sum(Eswatini.counts$freq), " total individuals with relationships, Eswatini"))
+text(lo10(20), log10(0.0001), paste(sum(Eswatini.counts$freq), " total individuals with relationships, Eswatini"))
 
-legend(30, -0.5, 
+legend(0.2, -4, 
        c("Eswatini", "Atlanta"),
        pch = 16,
        col = c("blue", "red"))
