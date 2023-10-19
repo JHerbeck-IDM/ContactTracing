@@ -7,7 +7,7 @@ from COMPS.Data import WorkItem, WorkItemFile, QueryCriteria, Priority
 from COMPS.Data.WorkItem import WorkItemState, WorkerOrPluginKey, RelationType
 
 compshost = 'https://comps.idmod.org'
-compsenv = 'IDMcloud'
+compsenv = 'Calculon'
 
 if len(sys.argv) != 2:
     print('\r\nUsage:\r\n\t{0} C:\\path\\to\\create\\workitem\\from'.format(sys.argv[0]))
@@ -44,7 +44,7 @@ workorder_string = \
   "Build": {
     "Type": "singularity",
     "Input": "Singularity.def",
-    "Output": "tree_stats_analysis.sif",
+    "Output": "HIV_contact_tracing.sif",
     "Tags": { }
   }
 }"""
