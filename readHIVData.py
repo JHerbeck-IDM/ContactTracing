@@ -43,9 +43,10 @@ if __name__ == '__main__':
                 # Reduce transmission data
                 data = pd.read_csv(os.path.join('download', sim_id, 'TransmissionReport.csv'))
                 data['SRC_RISK'] = data['SRC_IP'].str.extract(r'(LOW|MEDIUM|HIGH)')
-                data = data[['YEAR', 'REL_ID', 'SRC_ID', 'DEST_ID', 'SRC_STAGE', 'SRC_RISK']]
+                data['DEST_RISK'] = data['DEST_IP'].str.extract(r'(LOW|MEDIUM|HIGH)')
+                # data = data[['YEAR', 'REL_ID', 'SRC_ID', 'DEST_ID', 'SRC_STAGE', 'SRC_RISK']]
                 data.to_csv(os.path.join('download', sim_id, 'TransmissionReport.csv'),
-                                 index=False)
+                                  index=False)
                 
                 # Reduce relationship start data
                 data = pd.read_csv(os.path.join('download', sim_id, 'RelationshipStart.csv'))
