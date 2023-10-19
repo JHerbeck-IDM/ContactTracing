@@ -2,7 +2,7 @@ print('Sourcing tracing functions')
 source('HIVContactTracing.r')
 
 directory = readLines("data_path.txt")
-tracing_groups=c('HIV+', 'Incident_HIV', 'HIV-', 'Prevalent_HIV',
+tracing_groups=c('HIV+', 'Incident_HIV', 'HIV-',
                  'Undiagnosed_HIV')
 comparisons = c('traceable','sampleableAtTrace','sampleableEventually')
 sample_rates=c(100, 75, 50, 25)

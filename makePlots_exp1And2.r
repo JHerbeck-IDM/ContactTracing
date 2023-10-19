@@ -9,13 +9,11 @@ metrics = c('FP' = 'Contacts without Trait',#'False Positives',
             'P'  = 'People with Trait',#'Actual Positive',
             'N'  = 'People without Trait',#'Actual Negative',
             'PP' = 'Sexual Contacts',#'Predicted Positive',
-            'PPreduced' = 'Sexual Contacts',#'Predicted Positive',
             'PN' = 'Non-Contacts',#'Predicted Negative',
             'total' = 'Total Population',
             'prevalence' = 'Prevalence of Trait',
             'ACC' = 'Accuracy',
             'PPV' = 'Proportion of Contacts with Trait',#'Positive Predictive Value',
-            'PPVreduced' = 'Positive Predictive Value',
             'FDR' = 'False Discovery Rate',
             'FOR' = 'False Omission Rate',
             'NPV' = 'Negative Predictive Value',
@@ -37,7 +35,6 @@ metrics = c('FP' = 'Contacts without Trait',#'False Positives',
             'RR' = 'Relative Risk',
             'RRall' = 'Relative Risk vs All',
             'RRHIV-' = 'Relative Risk vs HIV- Contacts',
-            'RRHIV-reduced' = 'Relative Risk vs HIV- Contacts',
             'contacts_per_index' = 'Contacts Per Index',
             'N_HIV' = 'Number HIV+',
             'N_index' = 'Number of Index cases enrolled',
@@ -58,13 +55,11 @@ titles = c('FP' = 'Number of Contacts Without Trait',
            'P'  = 'Number of People With Trait',
            'N'  = 'Number of People Without Trait',
            'PP' = 'Number of Sexual Contacts of Tracing Group',#'Number of Contacts of Tracing Group',
-           'PPreduced' = 'Number of Sexual Contacts of Tracing Group (No Duplicates)',#'Number of Contacts of Tracing Group',
            'PN' = 'Number of Non-Contacts of Tracing Group',
            'total' = 'Total Population',
            'prevalence' = 'Prevalence of Trait',
            'ACC' = 'C w/ Trait plus NC w/o Trait divide by Total Population',
            'PPV' = 'Contacts With Trait / All Contacts',
-           'PPVreduced' = 'Contacts With Trait / All Contacts (No Duplicates)',
            'FDR' = 'Contacts Without Trait / All Contacts',
            'FOR' = 'Non-Contacts With Trait / All Non-Contacts',
            'NPV' = 'Non-Contacts Without Trait / All Non-Contacts',
@@ -86,7 +81,6 @@ titles = c('FP' = 'Number of Contacts Without Trait',
            'RR' = 'Relative Risk',
            'RRall' = 'Relative Risk vs All',
            'RRHIV-' = 'Relative Risk vs HIV- Contacts',
-           'RRHIV-reduced' = 'Relative Risk vs HIV- Contacts (No Duplicates)',
            'contacts_per_index' = 'Contacts Per Index',
            'N_HIV' = 'Number of Contacts HIV+ on Trace',
            'N_index' = 'Number of Index cases enrolled',
@@ -108,41 +102,45 @@ temp = reduced_data %>% filter(trait=="high_risk" & generation==1)
 for(pop_stat in c('N_index', 'N_HIV', 'N_untreated', 'N_undiagnosed', 'contact_mean',
                   'contact_std', 'percent_HIV', 'NNTTP', 'NNTTT', 'NNTTD', 'total',
                   'P','N','PP','PN')){
-  fig = ggplot(temp, aes(x=sample_rate, y=get(paste0(pop_stat, '_mean')),
-                         color=tracing_rate,
-                         group=tracing_rate)) +
-    theme(text=element_text(size=16), plot.title = element_text(hjust = 0.5)) +
-    geom_line( ) +
-    geom_errorbar( aes(ymin=get(paste0(pop_stat,'_mean'))-get(paste0(pop_stat,'_std')),
-                       ymax=get(paste0(pop_stat,'_mean'))+get(paste0(pop_stat,'_std'))),
-                   width=3) +
-    facet_grid(comparison ~ tracing_group) +
-    scale_color_continuous(breaks=unique(temp$tracing_rate)) +
-    guides(alpha='none', color=guide_legend(title="% Contacts Traced")) +
-    ggtitle(titles[pop_stat]) +
-    xlab('Rate of Enrollment') +
-    scale_x_continuous(breaks=unique(temp$sample_rate)) +
-    ylab(metrics[pop_stat])
-  ggsave(file.path(output_dir, paste0(pop_stat, '_singleTrait_gen1.png')), plot=fig, height=8, width=12, units='in', dpi=300)
-  # Plot single population
-  for(population in unique(temp$comparison)){
-    fig = ggplot(temp %>% filter(comparison==population),
-                 aes(x=sample_rate, y=get(paste0(pop_stat, '_mean')),
-                     color=tracing_rate,
-                     group=tracing_rate)) +
+  for(duplicate in c('Duplicates','No_Duplicates')){
+    fig = ggplot(temp %>% filter(duplicates==duplicate), aes(x=sample_rate, y=get(paste0(pop_stat, '_mean')),
+                           color=tracing_rate,
+                           group=tracing_rate)) +
       theme(text=element_text(size=16), plot.title = element_text(hjust = 0.5)) +
       geom_line( ) +
       geom_errorbar( aes(ymin=get(paste0(pop_stat,'_mean'))-get(paste0(pop_stat,'_std')),
                          ymax=get(paste0(pop_stat,'_mean'))+get(paste0(pop_stat,'_std'))),
                      width=3) +
-      facet_wrap(vars(tracing_group)) +
+      facet_grid(comparison ~ tracing_group) +
       scale_color_continuous(breaks=unique(temp$tracing_rate)) +
       guides(alpha='none', color=guide_legend(title="% Contacts Traced")) +
       ggtitle(titles[pop_stat]) +
       xlab('Rate of Enrollment') +
       scale_x_continuous(breaks=unique(temp$sample_rate)) +
       ylab(metrics[pop_stat])
-    ggsave(file.path(output_dir, paste0(pop_stat, '_singleTrait_', population, '_gen1.png')), plot=fig, height=8, width=12, units='in', dpi=300)
+    ggsave(file.path(output_dir, paste0(pop_stat, '_singleTrait_gen1_',  duplicate, '.png')), plot=fig, height=8, width=12, units='in', dpi=300)
+  }
+  # Plot single population
+  for(population in unique(temp$comparison)){
+    fig = ggplot(temp %>% filter(comparison==population),
+                 aes(x=tracing_group, y=get(paste0(pop_stat, '_mean')),
+                     color=duplicates,
+                     group=duplicates)) +
+      theme(text=element_text(size=16), plot.title = element_text(hjust = 0.5),
+            axis.text.x=element_text(angle=-90)) +
+      geom_line( ) +
+      geom_errorbar( aes(ymin=get(paste0(pop_stat,'_mean'))-get(paste0(pop_stat,'_std')),
+                         ymax=get(paste0(pop_stat,'_mean'))+get(paste0(pop_stat,'_std'))),
+                     width=3) +
+      # facet_wrap(vars(tracing_group)) +
+      facet_grid(sample_rate ~ tracing_rate, labeller = labeller(.rows = label_both, .cols = label_both)) +
+      # scale_color_continuous(breaks=unique(temp$tracing_rate)) +
+      guides(alpha='none', color=guide_legend(title="Include Duplicates")) +
+      ggtitle(titles[pop_stat]) +
+      xlab('Rate of Enrollment') +
+      # scale_x_continuous(breaks=unique(temp$sample_rate)) +
+      ylab(metrics[pop_stat])
+    ggsave(file.path(output_dir, paste0(pop_stat, '_singleTrait_', population, '_gen1.png')), plot=fig, height=10, width=12, units='in', dpi=300)
   }
 }
 
@@ -152,45 +150,64 @@ for(i in seq(1,length(metrics))){
   name = metrics[i]
   metric = names(name)
   title = titles[i]
-  fig = ggplot(temp, aes(x=sample_rate, y=get(paste0(metric, '_mean')),
-                                 color=tracing_group,
-                                 alpha=tracing_rate,
-                                 group=interaction(tracing_rate, tracing_group))) +
-    theme(text=element_text(size=16), plot.title = element_text(hjust = 0.5)) +
-    geom_line( aes(size=tracing_rate) ) +
-    geom_errorbar( aes(ymin=get(paste0(metric,'_mean'))-get(paste0(metric,'_std')),
-                       ymax=get(paste0(metric,'_mean'))+get(paste0(metric,'_std'))),
-                   width=3) +
-    facet_grid(comparison ~ trait) +
-    guides(alpha='none', color=guide_legend(title="Index Group")) +
-    ggtitle(title) +
-    scale_size("% Contacts Traced", range = c(0.05, 0.7), breaks=unique(temp$tracing_rate)) +
-    xlab('Rate of Enrollment') +
-    scale_x_continuous(breaks=unique(temp$sample_rate)) +
-    ylab(name)
-  ggsave(file.path(output_dir, paste0(metric, '_gen1.png')), plot=fig, height=8, width=12, units='in', dpi=300)
-  for(population in unique(temp$comparison)){
-    fig = ggplot(temp %>% filter(comparison==population),
+  for(duplicate in c('Duplicates','No_Duplicates')){
+    fig = ggplot(temp %>% filter(duplicates==duplicate),
                  aes(x=sample_rate, y=get(paste0(metric, '_mean')),
-                     color=tracing_rate,
-                     group=tracing_rate)) +
+                                   color=tracing_group,
+                                   alpha=tracing_rate,
+                                   group=interaction(tracing_rate, tracing_group))) +
       theme(text=element_text(size=16), plot.title = element_text(hjust = 0.5)) +
-      geom_line( ) +
+      geom_line( aes(size=tracing_rate) ) +
       geom_errorbar( aes(ymin=get(paste0(metric,'_mean'))-get(paste0(metric,'_std')),
                          ymax=get(paste0(metric,'_mean'))+get(paste0(metric,'_std'))),
                      width=3) +
-      facet_grid(tracing_group ~ trait) +
-      guides(alpha='none', color=guide_legend(title="% Contacts Traced")) +
-      ggtitle(paste0(title, '(', population, ')')) +
+      facet_grid(comparison ~ trait) +
+      guides(alpha='none', color=guide_legend(title="Index Group")) +
+      ggtitle(title) +
+      scale_size("% Contacts Traced", range = c(0.05, 0.7), breaks=unique(temp$tracing_rate)) +
       xlab('Rate of Enrollment') +
       scale_x_continuous(breaks=unique(temp$sample_rate)) +
-      ylab(metrics[pop_stat])
-    ggsave(file.path(output_dir, paste0(pop_stat, '_', population, '_gen1.png')), plot=fig, height=8, width=12, units='in', dpi=300)
+      ylab(name)
+    ggsave(file.path(output_dir, paste0(metric, '_gen1_', duplicate, '.png')), plot=fig, height=8, width=12, units='in', dpi=300)
+    for(population in unique(temp$comparison)){
+      fig = ggplot(temp %>% filter(comparison==population & duplicates==duplicate),
+                   aes(x=sample_rate, y=get(paste0(metric, '_mean')),
+                       color=tracing_rate,
+                       group=tracing_rate)) +
+        theme(text=element_text(size=16), plot.title = element_text(hjust = 0.5)) +
+        geom_line( ) +
+        geom_errorbar( aes(ymin=get(paste0(metric,'_mean'))-get(paste0(metric,'_std')),
+                           ymax=get(paste0(metric,'_mean'))+get(paste0(metric,'_std'))),
+                       width=3) +
+        facet_grid(tracing_group ~ trait) +
+        guides(alpha='none', color=guide_legend(title="% Contacts Traced")) +
+        ggtitle(paste0(title, '(', population, ')')) +
+        xlab('Rate of Enrollment') +
+        scale_x_continuous(breaks=unique(temp$sample_rate)) +
+        ylab(name)
+      ggsave(file.path(output_dir, paste0(metric, '_', population, '_gen1_', duplicate, '.png')), plot=fig, height=8, width=12, units='in', dpi=300)
+    }
   }
   SR=100
   TR=100
   fig = ggplot(temp %>% filter(sample_rate==SR & tracing_rate==TR),
-               aes(x=trait, y=get(paste0(metric, '_mean')), fill=tracing_group)) +
+               aes(x=trait, y=get(paste0(metric, '_mean')), fill=duplicates)) +
+    theme(text=element_text(size=16), axis.text.x=element_text(angle=-90),
+          plot.title = element_text(hjust = 0.5)) +
+    geom_bar(stat='identity',
+             color="black", position=position_dodge()) +
+    geom_errorbar( aes(ymin=get(paste0(metric,'_mean'))-get(paste0(metric,'_std')),
+                       ymax=get(paste0(metric,'_mean'))+get(paste0(metric,'_std'))),
+                   width=0.4, colour="black", position=position_dodge(0.9)) +
+    # facet_wrap(vars(comparison), nrow = 2) +
+    facet_grid(comparison ~ tracing_group) +
+    guides(fill=guide_legend(title='Index Group')) +
+    ggtitle(paste0(title, '\n(Sample Rate: ', SR, ' Tracing Rate: ', TR, ')')) +
+    xlab('Trait') +
+    ylab(name)
+  ggsave(file.path(output_dir, paste0(metric, '_SR', SR, '_TR', TR, '_gen1.png')), plot=fig, height=8, width=10, units='in', dpi=300)
+  fig = ggplot(temp %>% filter(sample_rate==SR & tracing_rate==TR & tracing_group=='HIV+'),
+               aes(x=trait, y=get(paste0(metric, '_mean')), fill=duplicates)) +
     theme(text=element_text(size=16), axis.text.x=element_text(angle=-90),
           plot.title = element_text(hjust = 0.5)) +
     geom_bar(stat='identity',
@@ -199,22 +216,7 @@ for(i in seq(1,length(metrics))){
                        ymax=get(paste0(metric,'_mean'))+get(paste0(metric,'_std'))),
                    width=0.4, colour="black", position=position_dodge(0.9)) +
     facet_wrap(vars(comparison), nrow = 2) +
-    guides(fill=guide_legend(title='Index Group')) +
-    ggtitle(paste0(title, '\n(Sample Rate: ', SR, ' Tracing Rate: ', TR, ')')) +
-    xlab('Trait') +
-    ylab(name)
-  ggsave(file.path(output_dir, paste0(metric, '_SR', SR, '_TR', TR, '_gen1.png')), plot=fig, height=8, width=10, units='in', dpi=300)
-  fig = ggplot(temp %>% filter(sample_rate==SR & tracing_rate==TR & tracing_group=='HIV+'),
-               aes(x=trait, y=get(paste0(metric, '_mean')), fill=comparison)) +
-    theme(text=element_text(size=16), axis.text.x=element_text(angle=-90),
-          plot.title = element_text(hjust = 0.5)) +
-    geom_bar(stat='identity',
-             color="black", position=position_dodge()) +
-    geom_errorbar( aes(ymin=get(paste0(metric,'_mean'))-get(paste0(metric,'_std')),
-                       ymax=get(paste0(metric,'_mean'))+get(paste0(metric,'_std'))),
-                   width=0.4, colour="black", position=position_dodge(0.9)) +
-    # facet_wrap(vars(comparison)) +
-    guides(fill=guide_legend(title='Index Group')) +
+    guides(fill=guide_legend(title='Population')) +
     ggtitle(paste0(title, '\n(Sample Rate: ', SR, ' Tracing Rate: ', TR, ')')) +
     xlab('Trait') +
     ylab(name)
@@ -227,23 +229,25 @@ temp = reduced_data %>% filter(trait=="high_risk" & comparison=="traceable")
 for(pop_stat in c('N_index', 'N_HIV', 'N_untreated', 'N_undiagnosed', 'contact_mean',
                   'contact_std', 'percent_HIV', 'NNTTP', 'NNTTT', 'NNTTD', 'total',
                   'P','N','PP','PN')){
-  fig = ggplot(temp,
-               aes(x=generation, y=get(paste0(pop_stat, '_mean')),
-                   color=tracing_group,
-                   group=tracing_group)) +
-    theme(text=element_text(size=16), plot.title = element_text(hjust = 0.5),
-          axis.text.x=element_text(angle=-90)) +
-    geom_line( ) +
-    geom_errorbar( aes(ymin=get(paste0(pop_stat,'_mean'))-get(paste0(pop_stat,'_std')),
-                       ymax=get(paste0(pop_stat,'_mean'))+get(paste0(pop_stat,'_std'))),
-                   width=1) +
-    facet_grid(sample_rate ~ tracing_rate, labeller = labeller(.rows = label_both, .cols = label_both)) +
-    guides(color=guide_legend(title="Index Group")) +
-    ggtitle(paste0(titles[pop_stat], ' (Traceable)')) +
-              xlab('Generation of Tracing') +
-              # scale_x_continuous(breaks=unique(temp$sample_rate)) +
-              ylab(metrics[pop_stat])
-  ggsave(file.path(output_dir, paste0(pop_stat, '_singleTrait_traceable.png')), plot=fig, height=8, width=12, units='in', dpi=300)
+  for(duplicate in c('Duplicates','No_Duplicates')){
+    fig = ggplot(temp %>% filter(duplicates==duplicate),
+                 aes(x=generation, y=get(paste0(pop_stat, '_mean')),
+                     color=tracing_group,
+                     group=tracing_group)) +
+      theme(text=element_text(size=16), plot.title = element_text(hjust = 0.5),
+            axis.text.x=element_text(angle=-90)) +
+      geom_line( ) +
+      geom_errorbar( aes(ymin=get(paste0(pop_stat,'_mean'))-get(paste0(pop_stat,'_std')),
+                         ymax=get(paste0(pop_stat,'_mean'))+get(paste0(pop_stat,'_std'))),
+                     width=1) +
+      facet_grid(sample_rate ~ tracing_rate, labeller = labeller(.rows = label_both, .cols = label_both)) +
+      guides(color=guide_legend(title="Index Group")) +
+      ggtitle(paste0(titles[pop_stat], ' (Traceable)')) +
+                xlab('Generation of Tracing') +
+                # scale_x_continuous(breaks=unique(temp$sample_rate)) +
+                ylab(metrics[pop_stat])
+    ggsave(file.path(output_dir, paste0(pop_stat, '_singleTrait_traceable_', duplicate, '.png')), plot=fig, height=8, width=12, units='in', dpi=300)
+  }
 }
 
 for(i in seq(1,length(metrics))){
@@ -251,59 +255,65 @@ for(i in seq(1,length(metrics))){
   metric = names(name)
   title = titles[i]
   for(cur_trait in unique(reduced_data$trait)){
-    fig = ggplot(reduced_data %>% filter(comparison=='traceable' & trait==cur_trait),
-                 aes(x=generation, y=get(paste0(metric, '_mean')),
-                     color=tracing_group,
-                     group=tracing_group)) +
-      theme(text=element_text(size=16), plot.title = element_text(hjust = 0.5),
-            axis.text.x=element_text(angle=-90)) +
-      geom_line( ) +
-      geom_errorbar( aes(ymin=get(paste0(metric,'_mean'))-get(paste0(metric,'_std')),
-                         ymax=get(paste0(metric,'_mean'))+get(paste0(metric,'_std'))),
-                                  width=1) +
-      facet_grid(sample_rate ~ tracing_rate, labeller = labeller(.rows = label_both, .cols = label_both)) +
-      guides(color=guide_legend(title="Index Group")) +
-      ggtitle(paste0(title, ' (', cur_trait, ', ', 'Traceable)')) +
-      xlab('Generation of Tracing') +
-      ylab(name)
-    max_y = fig$layout$panel_params[[1]]$y.range[2]
-    fig + ylim(0, min(50, max_y))
-    ggsave(file.path(output_dir, paste0(metric, '_', cur_trait, '_traceable.png')), plot=fig, height=8, width=12, units='in', dpi=300)
+    for(duplicate in c('Duplicates','No_Duplicates')){
+      fig = ggplot(reduced_data %>% filter(comparison=='traceable' & trait==cur_trait & duplicates==duplicate),
+                   aes(x=generation, y=get(paste0(metric, '_mean')),
+                       color=tracing_group,
+                       group=tracing_group)) +
+        theme(text=element_text(size=16), plot.title = element_text(hjust = 0.5),
+              axis.text.x=element_text(angle=-90)) +
+        geom_line( ) +
+        geom_errorbar( aes(ymin=get(paste0(metric,'_mean'))-get(paste0(metric,'_std')),
+                           ymax=get(paste0(metric,'_mean'))+get(paste0(metric,'_std'))),
+                       width=1) +
+        facet_grid(sample_rate ~ tracing_rate, labeller = labeller(.rows = label_both, .cols = label_both)) +
+        guides(color=guide_legend(title="Index Group")) +
+        ggtitle(paste0(title, ' (', cur_trait, ', ', 'Traceable)')) +
+        xlab('Generation of Tracing') +
+        ylab(name)
+      max_y = fig$layout$panel_params[[1]]$y.range[2]
+      fig + ylim(0, min(50, max_y))
+      ggsave(file.path(output_dir, paste0(metric, '_', cur_trait, '_traceable_', duplicate, '.png')), plot=fig, height=8, width=12, units='in', dpi=300)
+      if(cur_trait %in% c('high_risk', 'trans_source') & metric=='PPV'){
+        fig = ggplot(reduced_data %>% filter(comparison=='traceable' & trait==cur_trait & tracing_group %in% c('HIV-', 'HIV+') & duplicates==duplicate),
+                     aes(x=generation, y=get(paste0(metric, '_mean')),
+                         color=tracing_group,
+                         group=tracing_group)) +
+          theme(text=element_text(size=16), plot.title = element_text(hjust = 0.5),
+                axis.text.x=element_text(angle=-90)) +
+          geom_line( ) +
+          geom_errorbar( aes(ymin=get(paste0(metric,'_mean'))-get(paste0(metric,'_std')),
+                             ymax=get(paste0(metric,'_mean'))+get(paste0(metric,'_std'))),
+                         width=1) +
+          facet_grid(sample_rate ~ tracing_rate, labeller = labeller(.rows = label_both, .cols = label_both)) +
+          guides(color=guide_legend(title="Index Group")) +
+          ggtitle(paste0(title, ' (', cur_trait, ', ', 'Traceable)')) +
+          xlab('Generation of Tracing') +
+          ylab(name)
+        max_y = fig$layout$panel_params[[1]]$y.range[2]
+        fig + ylim(0, min(50, max_y))
+        ggsave(file.path(output_dir, paste0(metric, '_', cur_trait, '_HIV_traceable_', duplicate, '.png')), plot=fig, height=8, width=12, units='in', dpi=300)
+      }
+    }
   }
 }
 
-fig = ggplot(reduced_data %>% filter(comparison=='traceable' & generation==1),
-             aes(x=trait, y=`RRHIV-_mean`,
-                 fill=tracing_group,
-                 group=tracing_group)) +
-  theme(text=element_text(size=16), plot.title = element_text(hjust = 0.5),
-        axis.text.x=element_text(angle=-90)) +
-  geom_bar(stat='identity',
-           color="black", position=position_dodge()) +
-  geom_errorbar( aes(ymin=`RRHIV-_mean`-`RRHIV-_std`,
-                     ymax=`RRHIV-_mean`+`RRHIV-_std`),
-                 width=0.4, colour="black", position=position_dodge(0.9)) +
-  facet_grid(sample_rate ~ tracing_rate, labeller = labeller(.rows = label_both, .cols = label_both)) +
-  guides(color=guide_legend(title="Index Group")) +
-  ggtitle(paste0(titles['RRHIV-'], ' (Traceable)')) +
-  xlab('Trait') +
-  ylab(metrics['RRHIV-'])
-ggsave(file.path(output_dir, 'RRHIV-_traceable.png'), plot=fig, height=10, width=12, units='in', dpi=300)
-
-fig = ggplot(reduced_data %>% filter(comparison=='traceable' & generation==1),
-             aes(x=trait, y=`RRHIV-reduced_mean`,
-                 fill=tracing_group,
-                 group=tracing_group)) +
-  theme(text=element_text(size=16), plot.title = element_text(hjust = 0.5),
-        axis.text.x=element_text(angle=-90)) +
-  geom_bar(stat='identity',
-           color="black", position=position_dodge()) +
-  geom_errorbar( aes(ymin=`RRHIV-reduced_mean`-`RRHIV-reduced_std`,
-                     ymax=`RRHIV-reduced_mean`+`RRHIV-reduced_std`),
-                 width=0.4, colour="black", position=position_dodge(0.9)) +
-  facet_grid(sample_rate ~ tracing_rate, labeller = labeller(.rows = label_both, .cols = label_both)) +
-  guides(color=guide_legend(title="Index Group")) +
-  ggtitle(paste0(titles['RRHIV-reduced'], ' (Traceable)')) +
-  xlab('Trait') +
-  ylab(metrics['RRHIV-reduced'])
-ggsave(file.path(output_dir, 'RRHIV-reduced_traceable.png'), plot=fig, height=10, width=12, units='in', dpi=300)
+for(duplicate in c('Duplicates','No_Duplicates')){
+  fig = ggplot(reduced_data %>% filter(comparison=='traceable' & generation==1 & duplicates==duplicate),
+               aes(x=trait, y=`RRHIV-_mean`,
+                   fill=tracing_group,
+                   group=tracing_group)) +
+    theme(text=element_text(size=16), plot.title = element_text(hjust = 0.5),
+          axis.text.x=element_text(angle=-90)) +
+    geom_bar(stat='identity',
+             color="black", position=position_dodge()) +
+    geom_errorbar( aes(ymin=`RRHIV-_mean`-`RRHIV-_std`,
+                       ymax=`RRHIV-_mean`+`RRHIV-_std`),
+                   width=0.4, colour="black", position=position_dodge(0.9)) +
+    facet_grid(sample_rate ~ tracing_rate, labeller = labeller(.rows = label_both, .cols = label_both)) +
+    guides(color=guide_legend(title="Index Group")) +
+    ggtitle(paste0(titles['RRHIV-'], ' (Traceable)')) +
+    xlab('Trait') +
+    ylab(metrics['RRHIV-'])
+  ggsave(file.path(output_dir, paste0('RRHIV-_traceable_', duplicate, '.png')), plot=fig, height=10, width=12, units='in', dpi=300)
+}

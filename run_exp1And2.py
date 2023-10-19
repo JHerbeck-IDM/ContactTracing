@@ -5,7 +5,7 @@ from COMPS.Data import Experiment, Simulation, Configuration, SimulationFile, Qu
 
 ## All these settings should probably be moved to a yaml file and read in
 # The experiment IDs where the trees can be found
-data_id  = '6bfa88f0-b45c-ee11-aa0a-b88303911bc1'
+data_id  = '9dd0912f-3e69-ee11-aa0b-b88303911bc1'
 # The experiment IDs of existing experiments to add simulations too
 # exp_id  = ''
 # # Input parameters
