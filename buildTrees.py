@@ -1,3 +1,4 @@
+import os
 import argparse
 import numpy as np
 import pandas as pd
@@ -42,40 +43,36 @@ def get_arguments():
         description='Argument parser for all contact tracing cluster analysis scripts')
     parser.add_argument('--traceGroup', '-G', metavar='TRACEGROUP',
                         help='Choose group (Incident_HIV, Prevalent_HIV, Undiagnosed_HIV, HIV-) to use as index individuals for tracing',
-                        default='Incident_HIV')
-    parser.add_argument('--sampleRate', '-S', metavar='SAMPLERATE',
-                        help='Sample rate (as a percentage) can be list of values',
-                        default=[10, 50, 100], nargs='*', type=float)
-    parser.add_argument('--traceRate', '-T', metavar='TRACERATE',
-                        help='Tracing success rate (as a percentage) can be list of values',
-                        default=[10, 50, 100], nargs='*', type=float)
+                        default=['Incident_HIV'], nargs='*', type=str)
+    parser.add_argument('--numSamples', '-S', metavar='NUMSAMPLES',
+                        help='Maximum number of samples to gather',
+                        default=[500, 1000], nargs='*', type=float)
     parser.add_argument('--threshold', '-C', metavar='THRESHOLD',
                         help='Threshold to use in defining clusters can be list of values',
                         default=[0.5, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0], nargs='*', type=float)
     parser.add_argument('--traceStartTime', '-B', metavar='TRACESTARTTIME',
                         help='The time that the tracing is to start',
-                        default=[2010], nargs='*', type=float)
-    parser.add_argument('--traceEndTime', '-E', metavar='TRACEENDTIME',
-                        help='The time that the tracing is to end',
-                        default=[2012], nargs='*', type=float)
+                        default=[2000,2005,2010,2015], nargs='*', type=float)
+    parser.add_argument('--traceLength', '-L', metavar='TRACELENGTH',
+                        help='How long the tracing campaign lasts',
+                        default=[5], nargs='*', type=float)
     parser.add_argument('--lookBackWindow', '-W', metavar='LOOKBACKWINDOW',
                         help='The far back from the time of diagnosis the tracing goes',
                         default=[3], nargs='*', type=float)
     parser.add_argument('--tracingDelay', '-D', metavar='TRACINGDELAY',
                         help='How long it takes to trace and test contacts',
                         default=[0], nargs='*', type=float)    
-    parser.add_argument('--acuteToTrace', '-A', metavar='ACUTETOTRACE',
+    parser.add_argument('--acuteToTrace', '-A', #metavar='ACUTETOTRACE',
                         help='Only trace those that are acute at diagonsis',
-                        action=argparse.BooleanOptionalAction)
+                        action='store_true')#argparse.BooleanOptionalAction)
 
     input_args = parser.parse_args()
 
     # Get the arguments as individual variables
     tracing_group      = input_args.traceGroup
-    sample_rate        = input_args.sampleRate
-    tracing_rate       = input_args.traceRate
+    n_samples          = input_args.numSamples
     tracing_start_time = input_args.traceStartTime
-    tracing_end_time   = input_args.traceEndTime
+    tracing_duration   = input_args.traceLength
     look_back_window   = input_args.lookBackWindow
     tracing_delay      = input_args.tracingDelay
     acute_to_trace     = input_args.acuteToTrace
@@ -83,25 +80,24 @@ def get_arguments():
 
     # Get the arguements into the right types/formats
     if acute_to_trace:
-        acute_to_trace = True
+        acute_to_trace = [True]
     else:
-        acute_to_trace = False
-    sample_rates        = list(map(float, sample_rate))
-    tracing_rates       = list(map(float, tracing_rate))
-    tracing_start_times = list(map(float, tracing_start_time))
-    tracing_end_times   = list(map(float, tracing_end_time))
-    look_back_windows   = list(map(float, look_back_window))
-    tracing_delays      = list(map(float, tracing_delay))
-    thresholds          = list(map(float, thresholds))
+        acute_to_trace = [False]
+    n_samples           = list(map(int, n_samples))
+    tracing_start_times = list(map(int, tracing_start_time))
+    tracing_duration    = list(map(int, tracing_duration))
+    look_back_windows   = list(map(int, look_back_window))
+    tracing_delays      = list(map(int, tracing_delay))
+    thresholds          = list(map(int, thresholds))
 
     # Print out arguments for reference if needed
-    if tracing_group not in ['Incident_HIV', 'Prevalent_HIV', 'Undiagnosed_HIV', 'HIV']:
+    # if any(tracing_group not in ['Incident_HIV', 'Prevalent_HIV', 'Undiagnosed_HIV', 'HIV+', 'HIV-']):
+    if 0 > len(set(['Incident_HIV', 'Prevalent_HIV', 'Undiagnosed_HIV', 'HIV+', 'HIV-']).difference(tracing_group)):
         print('ERROR: tracing group "', tracing_group, '" not known.')
     print('Tracing Group:', tracing_group)
-    print('Sample Rate:', sample_rate)
-    print('Tracing Rate:', tracing_rate)
+    print('Number of Samples:', n_samples)
     print('Tracing Start Time:', tracing_start_time)
-    print('Tracing End Time:', tracing_end_time)
+    print('Tracing Duration:', tracing_duration)
     print('Look Back Window:', look_back_window)
     print('Tracing Delay:', tracing_delay)
     print('Acute to Trace:', acute_to_trace)
@@ -110,10 +106,9 @@ def get_arguments():
 
     # Return a dictionary with all the needed variables
     return {'tracing_group': tracing_group,
-            'sample_rate': sample_rates,
-            'tracing_rate': tracing_rates,
+            'n_samples': n_samples,
             'tracing_start_time': tracing_start_times,
-            'tracing_end_time': tracing_end_times,
+            'tracing_duration': tracing_duration,
             'look_back_window': look_back_windows,
             'tracing_delay': tracing_delays,
             'acute_to_trace': acute_to_trace,
@@ -240,10 +235,10 @@ def find_short_edges(tree, topology_only=False):
             
     return distance, names
 
-def get_cluster_stats(metadata, threshold=5, sample_rate=50, tracing_rate=0,
-                      tracing_start_time=0, tracing_end_time=0, tracing_delay=0,
-                      tracing_group='Incident_HIV', look_back_window=0,
-                      acute_to_trace=False):
+def get_cluster_stats(metadata, threshold=5, n_samples=1000,
+                      tracing_start_time=2010, tracing_duration=5,
+                      tracing_delay=0, tracing_group='Incident_HIV',
+                      look_back_window=0, acute_to_trace=False):
     """
     This function calculates basic cluster statistics (number of clusters,
     percent clustered, etc). Many of the inputs are given just to be added to
@@ -255,13 +250,10 @@ def get_cluster_stats(metadata, threshold=5, sample_rate=50, tracing_rate=0,
         threshold (float)         : The threshold used for determining clusters
         tracing_group (str)       : Which group/subset we are using for index
                                     individuals
-        sample_rate (float)       : Percentage of index individuals who actually
-                                    respond to tracing efforts
-        tracing_rate (float)      : Success rate of tracing contacts gives as a
-                                    percentage
-        trace_start_time (float)  : The date when the period for contract
+        N_samples (int)           : Maximum number of samples
+        tracing_start_time (float): The date when the period for contract
                                     tracing started.
-        trace_end_time (float)    : The date when the period for contract
+        tracing_duration (float)  : The date when the period for contract
                                     tracing ended.
         acute_to_trace (bool)     : This flags whether the incidence infections
                                     (those whose contacts will be traced) are
@@ -279,8 +271,8 @@ def get_cluster_stats(metadata, threshold=5, sample_rate=50, tracing_rate=0,
     """
 
     # Pre-allocate the data frame to hold the out put
-    data = pd.DataFrame(columns=['threshold', 'sample_rate', 'tracing_rate',
-                                 'tracing_start_time', 'tracing_end_time',
+    data = pd.DataFrame(columns=['threshold', 'n_samples',
+                                 'tracing_start_time', 'tracing_duration',
                                  'tracing_delay', 'tracing_group',
                                  'look_back_window', 'acute_to_trace',
                                  'percent_clustered', 'num_clusters',
@@ -292,10 +284,9 @@ def get_cluster_stats(metadata, threshold=5, sample_rate=50, tracing_rate=0,
     data['median_size'] = data['median_size'].astype('float')
     # Set values passed in
     data['threshold'] = threshold
-    data['sample_rate'] = sample_rate
-    data['tracing_rate'] = tracing_rate
+    data['n_samples'] = n_samples
     data['tracing_start_time'] = tracing_start_time
-    data['tracing_end_time'] = tracing_end_time
+    data['tracing_duration'] = tracing_duration
     data['tracing_delay'] = tracing_delay
     data['tracing_group'] = tracing_group
     data['look_back_window'] = look_back_window
@@ -313,15 +304,18 @@ def get_cluster_stats(metadata, threshold=5, sample_rate=50, tracing_rate=0,
 
     # Calculate the 'middle' of the cluster size distribution
     temp = metadata.loc[metadata['cluster_size']>1,:]
-    cluster_sizes = temp.groupby('cluster_name')['cluster_size'].agg('unique')
+    cluster_sizes = temp.groupby('cluster_name')['cluster_size'].agg('unique').astype(int)
     data['median_size'] = cluster_sizes.median()
     data['mean_size'] = cluster_sizes.mean()
     data['max_size'] = cluster_sizes.max()
 
     return data
 
-def get_cluster_enrichment(metadata, threshold=0, sample_percent=0, bias=0, burnin=0, start_year=0, end_year=0,
-                           window_slide=1, window_len=5, time_dependent=False, trans_yet=0):
+def get_cluster_enrichment(metadata, threshold=5, n_samples=1000,
+                           tracing_start_time=2010, tracing_duration=5,
+                           tracing_delay=0, tracing_group='Incident_HIV',
+                           look_back_window=0, acute_to_trace=False,
+                           trans_source=True):
     """
     This function calculates if clusters are 'enriched' with transmitters. To
     do this we calculate all the metrics for evaulating a binary test where we
@@ -332,54 +326,70 @@ def get_cluster_enrichment(metadata, threshold=0, sample_percent=0, bias=0, burn
     Arguments:
         metadata (DataFrame)  : This data frame contains the information on each
                                 individual including what cluster they are in
-        threshold (float)     : The threshold used for determining clusters
-        sample_percent (float): The sampling coverage as a percentage
-        bias (float or str)   : The biased used in the sampling
-        burnin (float)        : Number of years used for the burn-in
-        start_year (float)    : The year in which we began our sampling. This
-                                is only needed/used if doing the time dependent
-                                analysis
-        end_year (float)      : The year in which sampling ended. This is only
-                                needed/used if doing the time dependent analysis
-        window_slide (float)  : The number of years to move the window for each
-                                bin in the time dependent analysis. If this is
-                                smaller then the bin width it leds to
-                                overlapping bins and gives a smoothing effect
-        window_len (float)    : The width of the time bins in years.
-        time_dependent (bool) : Whether or not to do the dependent version of
-                                the analysis
+        threshold (float)         : The threshold used for determining clusters
+        tracing_group (str)       : Which group/subset we are using for index
+                                    individuals
+        N_samples (int)           : Maximum number of samples
+        tracing_start_time (float): The date when the period for contract
+                                    tracing started.
+        tracing_duration (float)  : The date when the period for contract
+                                    tracing ended.
+        acute_to_trace (bool)     : This flags whether the incidence infections
+                                    (those whose contacts will be traced) are
+                                    just those diagnosed during the tracing
+                                    period or if they also need to be acute at
+                                    the time of diagnosis.
+        look_back_duration (float): How far into the past individuals are asked
+                                    to remember contacts from
+        tracing_delay (float)     : How long the tracing takes which effects
+                                    the sample time
+        trans_source (bool)       : Where the trait is being a transmission
+                                    source or high risk
 
     Return
         DataFrame             : The data frame with the results looking at the
                                 full sampling period
-        DataFrame             : The data frame with the results for each time
-                                bin. If time_dependent is false then it is an
-                                empty data frame
 
     """
 
-    # It was breaking when I started with an empty data frame us here we create
+    # It was breaking when I started with an empty data frame so here we create
     # a data frame with one row and column
     data = pd.DataFrame({'FP': [0]})
 
     # Set the values we already know
-    data['bias'] = bias
-    data['percent_sampled'] = sample_percent
     data['threshold'] = threshold
-    data['burnin'] = burnin
+    data['n_samples'] = n_samples
+    data['tracing_start_time'] = tracing_start_time
+    data['tracing_duration'] = tracing_duration
+    data['tracing_delay'] = tracing_delay
+    data['tracing_group'] = tracing_group
+    data['look_back_window'] = look_back_window
+    data['acute_to_trace'] = acute_to_trace
 
-    # Here we are treating transmitter as if it is the condition/disease
+    # Here we are treating <trait> as if it is the condition/disease
     # and clusterings is a diagnostic test. We then calculate all the
     # statistics for that test
 
-    # False Positive
-    data['FP'] = np.sum(np.logical_and(metadata['cluster_size'] > 1, metadata['num_trans'] < 1))
-    # True Negative
-    data['TN'] = np.sum(np.logical_and(metadata['cluster_size'] <= 1, metadata['num_trans'] < 1))
-    # True Positive
-    data['TP'] = np.sum(np.logical_and(metadata['cluster_size'] > 1, metadata['num_trans'] > 0))
-    # False Negative
-    data['FN'] = np.sum(np.logical_and(metadata['cluster_size'] <= 1, metadata['num_trans'] > 0))
+    if trans_source:
+        data['trait'] = 'trans_source'
+        # False Positive
+        data['FP'] = np.sum(np.logical_and(metadata['cluster_size'] > 1, metadata['num_trans'] < 1))
+        # True Negative
+        data['TN'] = np.sum(np.logical_and(metadata['cluster_size'] <= 1, metadata['num_trans'] < 1))
+        # True Positive
+        data['TP'] = np.sum(np.logical_and(metadata['cluster_size'] > 1, metadata['num_trans'] > 0))
+        # False Negative
+        data['FN'] = np.sum(np.logical_and(metadata['cluster_size'] <= 1, metadata['num_trans'] > 0))
+    else:
+        data['trait'] = 'high_risk'
+        # False Positive
+        data['FP'] = np.sum(np.logical_and(metadata['cluster_size'] > 1, metadata['DEST_RISK'] != 'HIGH'))
+        # True Negative
+        data['TN'] = np.sum(np.logical_and(metadata['cluster_size'] <= 1, metadata['DEST_RISK'] != 'HIGH'))
+        # True Positive
+        data['TP'] = np.sum(np.logical_and(metadata['cluster_size'] > 1, metadata['DEST_RISK'] == 'HIGH'))
+        # False Negative
+        data['FN'] = np.sum(np.logical_and(metadata['cluster_size'] <= 1, metadata['DEST_RISK'] == 'HIGH'))
 
     # Actual Positives
     data['P'] = data['TP'] + data['FN']
@@ -449,127 +459,177 @@ def get_cluster_enrichment(metadata, threshold=0, sample_percent=0, bias=0, burn
 if __name__ == '__main__':
 
     input_arguments = get_arguments()
-    tracing_group = input_arguments['tracing_group']
-    sample_rates = input_arguments['sample_rate']
-    tracing_rates = input_arguments['tracing_rate']
+    tracing_groups      = input_arguments['tracing_group']
+    n_samples           = input_arguments['n_samples']
     tracing_start_times = input_arguments['tracing_start_time']
-    tracing_end_times = input_arguments['tracing_end_time']
-    look_back_windows = input_arguments['look_back_window']
-    tracing_delays = input_arguments['tracing_delay']
-    acute_to_trace = input_arguments['acute_to_trace']
-    thresholds = input_arguments['thresholds']
+    tracing_durations   = input_arguments['tracing_duration']
+    look_back_windows   = input_arguments['look_back_window']
+    tracing_delays      = input_arguments['tracing_delay']
+    acute_to_traces     = input_arguments['acute_to_trace']
+    thresholds          = input_arguments['thresholds']
+    
+    # Read in the directory for the tree
+    with open('data_path.txt') as f:
+        directory = f.readline()
+    # directory = 'download/79a4cded-0249-ee11-aa0a-b88303911bc1/'
 
     r.source('HIVContactTracing.r')
-    transmissionData_r = r.doSampling(tracing_group=tracing_group,
-                                      sample_rate=sample_rates[0],
-                                      tracing_rate=tracing_rates[0],
-                                      tracing_start_time=tracing_start_times[0],
-                                      tracing_end_time=tracing_end_times[0],
-                                      acute_to_trace=acute_to_trace,
-                                      look_back_duration=look_back_windows[0],
-                                      tracing_delay=tracing_delays[0])
+    print('Starting call to R')
+    lineList_r = r.doSampling(directory,
+                              tracing_group = tracing_groups,
+                              n_samples = n_samples,
+                              tracing_start_time = tracing_start_times,
+                              tracing_durations=tracing_durations,
+                              acute_to_traces=acute_to_traces,
+                              look_back_duration=look_back_windows,
+                              tracing_delays=tracing_delays)
+    print('R is done')
     with localconverter( robjects.default_converter + pandas2ri.converter ):
-        transmissionData  = robjects.conversion.rpy2py( transmissionData_r  )
+        lineList  = robjects.conversion.rpy2py( lineList_r  )
     
-    # Make sure the tree stops at the end of the campaign
-    transmissionData.loc[transmissionData['sampleTime']<=(tracing_end_times[0]+tracing_delays[0]), 'sampleTime'] = np.nan
     # Count the number of times an individual transmits
     temp = pd.DataFrame()
-    temp['trans_time'] = transmissionData.groupby(SRC_ID)['YEAR'].apply(np.array)
+    temp['trans_time'] = lineList.groupby(SRC_ID)['YEAR'].apply(np.array)
     temp['num_trans'] = temp['trans_time'].apply(len)
     temp[ID] = temp.index
-    transmissionData = transmissionData.merge(temp, on=ID, how='left')
-    transmissionData['num_trans'] = transmissionData['num_trans'].fillna(0)
+    lineList = lineList.merge(temp, on=ID, how='left')
+    lineList['num_trans'] = lineList['num_trans'].fillna(0)
     # Make sure ID columns are strings
-    transmissionData[ID] = transmissionData[ID].astype(int).astype(str)
-    transmissionData[SRC_ID]  = transmissionData[SRC_ID].astype(int).astype(str)
-    # Create Risk column
-    transmissionData['SRC_RISK']  = transmissionData['SRC_IP'].str.extract(r'Risk:([A-Za-z]+),')
-    transmissionData['DEST_RISK'] = transmissionData['DEST_IP'].str.extract(r'Risk:([A-Za-z]+),')
-
-    # Generate a transmission tree for each seed infection
-    trees = generate_treeFromFile.read_treeFromLineList(transmissionData,
-                                                        ID=ID,
-                                                        infectorID=SRC_ID,
-                                                        infectTime='Infected',
-                                                        sampleTime='sampleTime',
-                                                        features=['Individual_ID',
-                                                                  'contact_Risk',
-                                                                  'contact_HIV_stage',
-                                                                  'subset',
-                                                                  'num_trans_before',
-                                                                  'num_trans_after',
-                                                                  'SRC_RISK',
-                                                                  'DEST_RISK',
-                                                                  'num_trans',
-                                                                  'traced_into'])
-
-    # Convert trees into phylo trees
-    for i in np.arange(len(trees)):
-        trees[i] = transform_transToPhyloTree(trees[i])
+    lineList[ID] = lineList[ID].astype(int).astype(str)
+    lineList[SRC_ID]  = lineList[SRC_ID].astype(int).astype(str)
+    lineList.to_csv(os.path.join('lineList.csv'), index=False)
+    print('DONE: with data preparation')
     
-    # Coalesce into a single tree
-    tree = transform_joinTrees(trees)
-    sampleTimes = transmissionData[[ID, 'sampleTime']]
+    # add 'random' as tracing group
+    tracing_groups = tracing_groups + ['random']
+    # create dataframes to hold output
+    cluster_data = []
+    enrichment_data = []
+    for tracing_start_time in tracing_start_times:
+        for tracing_duration in tracing_durations:
+            for tracing_delay in tracing_delays:
+                for look_back_duration in look_back_windows:
+                    for acute_to_trace in acute_to_traces:
+                        for n_sample in n_samples:
+                            for tracing_group in tracing_groups:
+                                # Get the name of the column with sample times
+                                sampleTime_name = 'Sampled_TG-' + str(tracing_group) + \
+                                    '_TST-' + str(tracing_start_time) + '_TL-' + \
+                                    str(tracing_duration) + '_TD-' + str(tracing_delay) + \
+                                    '_LBD-' + str(look_back_duration) + '_NS-' + \
+                                        str(n_sample)
+
+                                # Generate a transmission tree for each seed infection
+                                trees = generate_treeFromFile.read_treeFromLineList(lineList,
+                                                                                    ID=ID,
+                                                                                    infectorID=SRC_ID,
+                                                                                    infectTime='YEAR',
+                                                                                    sampleTime=sampleTime_name,
+                                                                                    features=['SRC_RISK',
+                                                                                              'DEST_RISK',
+                                                                                              'num_trans'])
+
+                                # Convert trees into phylo trees
+                                for i in np.arange(len(trees)):
+                                    trees[i] = transform_transToPhyloTree(trees[i])
+                                
+                                # Coalesce into a single tree
+                                tree = transform_joinTrees(trees)
+                                sampleTimes = lineList[[ID, sampleTime_name]]
+                                sampleTimes.rename(columns={sampleTime_name: 'SampleTime'}, inplace=True)
     
-    # Start timer
-    tic = perf_counter()
+                                # Start timer
+                                tic = perf_counter()
+                            
+                                # Get distance matrix with every node in the tree
+                                distance, names = find_short_edges(tree)
+                                # Get leaves
+                                leaves = tree.get_leaf_names()
+                                del tree
+                                names = np.array(names)
+                                print(len(names), 'number of nodes')
+                                print(len(leaves), 'number of leaves')
 
-    # Get distance matrix with every node in the tree
-    distance, names = find_short_edges(tree)
-    # Get leaves
-    leaves = tree.get_leaf_names()
-    del tree
-    names = np.array(names)
-    print(len(names), 'number of nodes')
-    print(len(leaves), 'number of leaves')
+                                # Get index for which nodes are leaves
+                                idx = np.full((len(names)), False, dtype=bool)
+                                for name in leaves:
+                                    idx = np.logical_or(idx, names==name)
 
-    # Get index for which nodes are leaves
-    idx = np.full((len(names)), False, dtype=bool)
-    for name in leaves:
-        idx = np.logical_or(idx, names==name)
+                                # Reduced the list of names and sample times to just the leaves
+                                names = names[idx]
+                                names = pd.DataFrame({ID: names})
+                                names = names.merge(sampleTimes, on=ID, how='left')
 
-    # Reduced the list of sames and sample times to just the leaves
-    names = names[idx]
-    names = pd.DataFrame({ID: names})
-    names = names.merge(sampleTimes, on=ID, how='left')
+                                # Reduce the distance matrix to just contain leaves
+                                distance = distance[idx,:][:,idx]
+                                # Fill the diagonal with inf so that the closest node is not itself
+                                np.fill_diagonal(distance, float('inf'))
 
-    # Reduce the distance matrix to just contain leaves
-    distance = distance[idx,:][:,idx]
-    # Fill the diagonal with inf so that the closest node is not itself
-    np.fill_diagonal(distance, float('inf'))
-
-    # End timer
-    toc = perf_counter()
-    print((toc-tic)/60, " minutes spent on the getting distances")
+                                # End timer
+                                toc = perf_counter()
+                                print((toc-tic)/60, " minutes spent on the getting distances")
     
-    names[ID] = names[ID].astype(str)
-    names = names.merge(transmissionData.loc[transmissionData[ID].isin(names[ID]),
-                                             [ID,
-                                              'Individual_ID',
-                                              'contact_Risk',
-                                              'contact_HIV_stage',
-                                              'subset',
-                                              'num_trans_before',
-                                              'num_trans_after',
-                                              'SRC_RISK',
-                                              'DEST_RISK',
-                                              'Infected',
-                                              'num_trans',
-                                              'traced_into']], on=ID, how='left')
-    del transmissionData
+                                names[ID] = names[ID].astype(str)
+                                names = names.merge(lineList.loc[lineList[ID].isin(names[ID]),
+                                                                         [ID,
+                                                                          'SRC_RISK',
+                                                                          'DEST_RISK',
+                                                                          'YEAR',
+                                                                          'num_trans']], on=ID, how='left')
+                                
+                                for threshold in thresholds:
+                                    print('Thershold: ', threshold)
 
-    num_clusters, clusters = connected_components(distance < thresholds[0])
-    
-    # Create an empty data frame
-    meta_data = pd.DataFrame()
-
-    # Add basic information: id, time sampled, cluster name, and size of the cluster
-    meta_data[ID] = names[ID]
-    meta_data['cluster_name'] = clusters
-    meta_data['cluster_size'] = meta_data.groupby('cluster_name')['cluster_name'].transform('count')
-
-    # Add the meta data from the original line list
-    meta_data = meta_data.merge(names, on=ID)
-    
+                                    num_clusters, clusters = connected_components(distance < threshold)
+                                
+                                    # Add basic information: id, time sampled, cluster name, and size of the cluster
+                                    names['cluster_name'] = clusters
+                                    names['cluster_size'] = names.groupby('cluster_name')['cluster_name'].transform('count')
+                                    names['cluster_size'] = names['cluster_size'].astype(int)
+                                    
+                                    temp = get_cluster_stats(names,
+                                                             threshold,
+                                                             n_sample,
+                                                             tracing_start_time,
+                                                             tracing_duration,
+                                                             tracing_delay,
+                                                             tracing_group,
+                                                             look_back_duration,
+                                                             acute_to_trace)
+                                    cluster_data.append(temp)
+                                    temp = get_cluster_enrichment(names,
+                                                                  threshold,
+                                                                  n_sample,
+                                                                  tracing_start_time,
+                                                                  tracing_duration,
+                                                                  tracing_delay,
+                                                                  tracing_group,
+                                                                  look_back_duration,
+                                                                  acute_to_trace,
+                                                                  trans_source=True)
+                                    enrichment_data.append(temp)
+                                    temp = get_cluster_enrichment(names,
+                                                                  threshold,
+                                                                  n_sample,
+                                                                  tracing_start_time,
+                                                                  tracing_duration,
+                                                                  tracing_delay,
+                                                                  tracing_group,
+                                                                  look_back_duration,
+                                                                  acute_to_trace,
+                                                                  trans_source=False)
+                                    enrichment_data.append(temp)
+                                
+    cluster_data = pd.concat(cluster_data, ignore_index=True)
+    enrichment_data = pd.concat(enrichment_data, ignore_index=True)
+    enrichment_data['RRrandom'] = enrichment_data.groupby(['threshold',
+                                               'n_samples',
+                                               'tracing_start_time',
+                                               'tracing_duration',
+                                               'tracing_delay',
+                                               'look_back_window',
+                                               'acute_to_trace',
+                                               'trait'], as_index=False).apply(lambda df: df['PPV']/df.loc[df['tracing_group']=='random', 'PPV'].values[0]).rename('RRrandom').reset_index(level=0, drop=True)
+    cluster_data.to_csv(os.path.join('clusterData.csv'), index=False)
+    enrichment_data.to_csv(os.path.join('enrichmentData.csv'), index=False)
     print('DONE')
